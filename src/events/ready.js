@@ -3,7 +3,7 @@ const { guildId } = require('../config');
 const logger = require('../utils/logger');
 
 // The commands will be loaded from the commands folder and passed in.
-module.exports = async function onReady(client, token, commands) {
+module.exports = async function onclientReady(client, token, commands) {
   logger.info(`Logged in as ${client.user.tag}`, { userId: client.user.id });
 
   try {
@@ -12,7 +12,7 @@ module.exports = async function onReady(client, token, commands) {
       status: 'online',
     });
   } catch (err) {
-    logger.warn('Failed to set presence', { context: 'ready' });
+    logger.warn('Failed to set presence', { context: 'clientReady' });
   }
 
   // Register slash commands
@@ -31,7 +31,7 @@ module.exports = async function onReady(client, token, commands) {
         Routes.applicationGuildCommands(client.user.id, guildId),
         { body }
       );
-      logger.info(`Registered ${body.length} guild command(s) for ${guildId}.`, { guildId });
+      logger.info(`Registered ${body.length} guild command(s) for ${guildId}.`);
     } else {
       await rest.put(
         Routes.applicationCommands(client.user.id),
@@ -40,6 +40,6 @@ module.exports = async function onReady(client, token, commands) {
       logger.info(`Registered ${body.length} global command(s). It may take up to 1 hour to appear.`);
     }
   } catch (err) {
-    logger.error('Failed to register slash commands', { context: 'ready' }, err);
+    logger.error('Failed to register slash commands', { context: 'clientReady' }, err);
   }
 };
