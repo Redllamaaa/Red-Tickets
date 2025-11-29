@@ -19,15 +19,15 @@ function buildRoleRequestModal() {
           .setLabel('What is your SteamID64?')
           .setPlaceholder('76561198894758216')
           .setRequired(true)
-          .setStyle(TextInputStyle.Paragraph)
+          .setStyle(TextInputStyle.Short)
       ),
       new ActionRowBuilder().addComponents(
         new TextInputBuilder()
           .setCustomId('battalion')
           .setLabel('What battalion/Spec are you requesting for?')
-          .setPlaceholder('Proof, portfolio, etc.')
+          .setPlaceholder('Nova')
           .setRequired(true)
-          .setStyle(TextInputStyle.Paragraph)
+          .setStyle(TextInputStyle.Short)
       ),
             new ActionRowBuilder().addComponents(
         new TextInputBuilder()

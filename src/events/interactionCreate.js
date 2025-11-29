@@ -1,15 +1,20 @@
 const { ChannelType, PermissionFlagsBits, EmbedBuilder, ThreadAutoArchiveDuration, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const { supportRoleId, ticketCategoryId } = require('../config');
 const { buildRoleRequestModal } = require('../utils/roleRequestModal');
+const { getNextTicketNumber } = require('../utils/db');
 
-async function createTicketThread({ interaction, type, title, initialMessage }) {
+async function createTicketThread({ interaction, type, title, initialMessage, overrideName }) {
   try {
     if (ticketCategoryId) {
       const guild = interaction.guild;
       const parent = guild.channels.cache.get(ticketCategoryId) || await guild.channels.fetch(ticketCategoryId).catch(() => null);
       if (!parent) throw new Error('Configured ticketCategoryId not found.');
 
-      const channelName = `${type}-${interaction.user.username}`.toLowerCase().replace(/[^a-z0-9-]/g, '-').slice(0, 90);
+      const baseName = (overrideName || `${type}-${interaction.user.username}`)
+        .toLowerCase()
+        .replace(/[^a-z0-9-]/g, '-')
+        .slice(0, 90);
+      const channelName = baseName;
       const channel = await guild.channels.create({
         name: channelName,
         type: ChannelType.GuildText,
@@ -49,7 +54,11 @@ async function createTicketThread({ interaction, type, title, initialMessage }) 
       throw new Error('Tickets must be created from a text channel or configure ticketCategoryId.');
     }
 
-    const threadName = `${type}-${interaction.user.username}`.toLowerCase().replace(/[^a-z0-9-]/g, '-').slice(0, 90);
+    const baseName = (overrideName || `${type}-${interaction.user.username}`)
+      .toLowerCase()
+      .replace(/[^a-z0-9-]/g, '-')
+      .slice(0, 90);
+    const threadName = baseName;
     const thread = await parentChannel.threads.create({
       name: threadName,
       type: ChannelType.PrivateThread,
@@ -164,6 +173,17 @@ module.exports = async function onInteractionCreate(interaction, commands) {
         const battalion = interaction.fields.getTextInputValue('battalion');
         const roles = interaction.fields.getTextInputValue('roles');
 
+        // Determine ticket name for role requests
+        const trimmedBattalion = (battalion || 'role').trim();
+        const key = trimmedBattalion.toLowerCase();
+        let nextNum = 1;
+        try {
+          nextNum = getNextTicketNumber(interaction.guild?.id || 'global', key);
+        } catch (e) {
+          console.error('Failed to get next ticket number from DB:', e);
+        }
+        const ticketName = `${trimmedBattalion}-${nextNum}`;
+
         const displayName = interaction.member?.displayName || interaction.user.username;
         const avatarUrl = interaction.user.displayAvatarURL?.({ size: 256 }) || interaction.user.displayAvatarURL?.();
 
@@ -208,6 +228,7 @@ module.exports = async function onInteractionCreate(interaction, commands) {
             type: 'role',
             title: 'Role Request Ticket',
             initialMessage: 'A new role request has been submitted.',
+            overrideName: ticketName,
           });
           await message.edit({ embeds: [headerEmbed, detailsEmbed] }).catch(async () => {
             await location.send({ embeds: [headerEmbed, detailsEmbed] });
