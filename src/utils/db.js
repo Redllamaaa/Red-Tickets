@@ -8,7 +8,7 @@ if (!fs.existsSync(dataDir)) {
   fs.mkdirSync(dataDir, { recursive: true });
 }
 
-const dbPath = path.join(dataDir, 'bot.db');
+const dbPath = path.join(dataDir, 'RedTickets.db');
 const db = new Database(dbPath);
 
 // Pragmas for better durability/concurrency
