@@ -3,11 +3,10 @@ require('dotenv').config();
 const { Client, GatewayIntentBits } = require('discord.js');
 const fs = require('fs');
 const path = require('path');
-const logger = require('./utils/logger');
 
 const token = process.env.DISCORD_TOKEN;
 if (!token) {
-  logger.error('Missing DISCORD_TOKEN. Set it in your .env file.');
+  console.error('Missing DISCORD_TOKEN. Set it in your .env file.');
   process.exit(1);
 }
 
@@ -25,7 +24,7 @@ if (fs.existsSync(commandsDir)) {
     if (!file.endsWith('.js')) continue;
     const mod = require(path.join(commandsDir, file));
     if (!mod?.data?.name || typeof mod.execute !== 'function') {
-      logger.warn(`Skipping invalid command module: ${file}`);
+      console.warn(`Skipping invalid command module: ${file}`);
       continue;
     }
     commands.set(mod.data.name, mod);
@@ -33,11 +32,11 @@ if (fs.existsSync(commandsDir)) {
 }
 
 // Load events
-const readyHandler = require('./events/ready');
+const clientReadyHandler = require('./events/ready');
 const interactionHandler = require('./events/interactionCreate');
 
-client.once('ready', async () => {
-  await readyHandler(client, token, Array.from(commands.values()));
+client.once('clientReady', async () => {
+  await clientReadyHandler(client, token, Array.from(commands.values()));
 });
 
 client.on('interactionCreate', async (interaction) => {
@@ -45,19 +44,19 @@ client.on('interactionCreate', async (interaction) => {
 });
 
 // Diagnostics and shutdown handling
-client.on('error', (err) => logger.error('Client error', {}, err));
-client.on('warn', (info) => logger.warn(`Client warn: ${info}`));
+client.on('error', (err) => console.error('Client error:', err));
+client.on('warn', (info) => console.warn('Client warn:', info));
 
 process.on('unhandledRejection', (reason) => {
-  logger.error('Unhandled promise rejection', {}, reason instanceof Error ? reason : new Error(String(reason)));
+  console.error('Unhandled promise rejection:', reason);
 });
 
 process.on('uncaughtException', (err) => {
-  logger.error('Uncaught exception', {}, err);
+  console.error('Uncaught exception:', err);
 });
 
 const shutdown = (signal) => {
-  logger.warn(`Received ${signal}. Shutting down...`);
+  console.log(`Received ${signal}. Shutting down...`);
   client.destroy();
   process.exit(0);
 };
