@@ -2,7 +2,7 @@ const { ModalBuilder, ActionRowBuilder, TextInputBuilder, TextInputStyle } = req
 
 function buildRoleRequestModal() {
   return new ModalBuilder()
-    .setCustomId('role_request_modal')
+    .setCustomId('role_request_modal:v1')
     .setTitle('Role Request Form')
     .addComponents(
       new ActionRowBuilder().addComponents(
@@ -29,7 +29,7 @@ function buildRoleRequestModal() {
           .setRequired(true)
           .setStyle(TextInputStyle.Short)
       ),
-            new ActionRowBuilder().addComponents(
+      new ActionRowBuilder().addComponents(
         new TextInputBuilder()
           .setCustomId('roles')
           .setLabel('List all the roles you are requesting:')

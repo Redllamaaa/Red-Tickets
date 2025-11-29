@@ -8,7 +8,7 @@ function buildRoleRequestPanel() {
 
   const row = new ActionRowBuilder().addComponents(
     new ButtonBuilder()
-      .setCustomId('ticket_open_role_request')
+      .setCustomId('ticket:open:role_request:v1')
       .setLabel('Request a Role')
       .setEmoji('📝')
       .setStyle(ButtonStyle.Success)

@@ -2,6 +2,20 @@ const { ChannelType, PermissionFlagsBits, EmbedBuilder, ThreadAutoArchiveDuratio
 const { supportRoleId, ticketCategoryId } = require('../config');
 const { buildRoleRequestModal } = require('../utils/roleRequestModal');
 const { getNextTicketNumber } = require('../utils/db');
+const logger = require('../utils/logger');
+
+// simple in-memory cooldown to prevent spam
+const cooldowns = new Map(); // key: `${userId}:${action}` -> timestamp ms
+const COOLDOWN_MS = 5000;
+
+function checkCooldown(userId, action) {
+  const key = `${userId}:${action}`;
+  const now = Date.now();
+  const last = cooldowns.get(key) || 0;
+  if (now - last < COOLDOWN_MS) return false;
+  cooldowns.set(key, now);
+  return true;
+}
 
 async function createTicketThread({ interaction, type, title, initialMessage, overrideName }) {
   try {
@@ -9,6 +23,7 @@ async function createTicketThread({ interaction, type, title, initialMessage, ov
       const guild = interaction.guild;
       const parent = guild.channels.cache.get(ticketCategoryId) || await guild.channels.fetch(ticketCategoryId).catch(() => null);
       if (!parent) throw new Error('Configured ticketCategoryId not found.');
+      if (parent.type !== ChannelType.GuildCategory) throw new Error('ticketCategoryId must be a category channel id.');
 
       const baseName = (overrideName || `${type}-${interaction.user.username}`)
         .toLowerCase()
@@ -24,13 +39,14 @@ async function createTicketThread({ interaction, type, title, initialMessage, ov
           { id: interaction.user.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory] },
           ...(supportRoleId ? [{ id: supportRoleId, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory] }] : []),
         ],
+        reason: `Ticket created by ${interaction.user.tag}`,
       });
 
       const mention = supportRoleId ? `<@&${supportRoleId}>` : '';
       const content = `${mention} ${interaction.user} ${initialMessage || ''}`.trim();
       const actionComponents = [
         new ButtonBuilder()
-          .setCustomId('ticket_close')
+          .setCustomId('ticket:close:v1')
           .setLabel('Close')
           .setEmoji('🔒')
           .setStyle(ButtonStyle.Danger),
@@ -38,7 +54,7 @@ async function createTicketThread({ interaction, type, title, initialMessage, ov
       if (type === 'role') {
         actionComponents.push(
           new ButtonBuilder()
-            .setCustomId('ticket_role_edit')
+            .setCustomId('ticket:role:edit:v1')
             .setLabel('Edit Request')
             .setEmoji('✏️')
             .setStyle(ButtonStyle.Secondary)
@@ -73,7 +89,7 @@ async function createTicketThread({ interaction, type, title, initialMessage, ov
     const content = `${mention} ${interaction.user} ${initialMessage || ''}`.trim();
     const actionComponents = [
       new ButtonBuilder()
-        .setCustomId('ticket_close')
+        .setCustomId('ticket:close:v1')
         .setLabel('Close')
         .setEmoji('🔒')
         .setStyle(ButtonStyle.Danger),
@@ -81,7 +97,7 @@ async function createTicketThread({ interaction, type, title, initialMessage, ov
     if (type === 'role') {
       actionComponents.push(
         new ButtonBuilder()
-          .setCustomId('ticket_role_edit')
+          .setCustomId('ticket:role:edit:v1')
           .setLabel('Edit Request')
           .setEmoji('✏️')
           .setStyle(ButtonStyle.Secondary)
@@ -91,13 +107,16 @@ async function createTicketThread({ interaction, type, title, initialMessage, ov
     const msg = await thread.send({ content, embeds: [new EmbedBuilder().setTitle(title).setColor(0x2b2d31)], components: [row] });
     return { location: thread, message: msg };
   } catch (err) {
-    console.error('Failed to create ticket:', err);
+    logger.error('Failed to create ticket', { userId: interaction.user?.id, guildId: interaction.guild?.id, context: 'createTicketThread' }, err);
     throw err;
   }
 }
 
 module.exports = async function onInteractionCreate(interaction, commands) {
   try {
+    // Ensure we only operate in guild contexts
+    if (!interaction.inGuild || !interaction.inGuild()) return;
+
     // Slash commands
     if (interaction.isChatInputCommand && interaction.isChatInputCommand()) {
       const cmd = commands.get(interaction.commandName);
@@ -110,7 +129,11 @@ module.exports = async function onInteractionCreate(interaction, commands) {
     // Buttons
     if (interaction.isButton && interaction.isButton()) {
       const { customId } = interaction;
-      if (customId === 'ticket_open_support') {
+
+      if (customId === 'ticket:open:support:v1') {
+        if (!checkCooldown(interaction.user.id, 'open_support')) {
+          return interaction.reply({ content: 'Please wait a few seconds before creating another ticket.', ephemeral: true }).catch(() => {});
+        }
         await interaction.deferReply({ ephemeral: true });
         const { location } = await createTicketThread({
           interaction,
@@ -122,13 +145,16 @@ module.exports = async function onInteractionCreate(interaction, commands) {
         return;
       }
 
-      if (customId === 'ticket_open_role_request') {
+      if (customId === 'ticket:open:role_request:v1') {
+        if (!checkCooldown(interaction.user.id, 'open_role')) {
+          return interaction.reply({ content: 'Please wait a few seconds before creating another ticket.', ephemeral: true }).catch(() => {});
+        }
         const modal = buildRoleRequestModal();
         await interaction.showModal(modal);
         return;
       }
 
-      if (customId === 'ticket_close') {
+      if (customId === 'ticket:close:v1') {
         await interaction.deferReply({ ephemeral: true });
         const ch = interaction.channel;
         try {
@@ -143,21 +169,21 @@ module.exports = async function onInteractionCreate(interaction, commands) {
               try {
                 await ch.delete(`Ticket closed by ${interaction.user.tag}`);
               } catch (err) {
-                console.error('Failed to delete ticket channel after delay:', err);
+                logger.error('Failed to delete ticket channel after delay', { channelId: ch?.id, userId: interaction.user?.id }, err);
               }
             }, 5000);
           }
         } catch (e) {
-          console.error('Failed to close ticket:', e);
+          logger.error('Failed to close ticket', { channelId: ch?.id, userId: interaction.user?.id }, e);
           await interaction.editReply({ content: 'Failed to close ticket. Check my permissions.' });
         }
         return;
       }
 
-      if (customId === 'ticket_role_edit') {
+      if (customId === 'ticket:role:edit:v1') {
         const modal = buildRoleRequestModal();
         // encode the message id so we can update this message on submit
-        try { modal.setCustomId(`role_request_modal:${interaction.message.id}`); } catch {}
+        try { modal.setCustomId(`role_request_modal:v1:${interaction.message.id}`); } catch {}
         await interaction.showModal(modal);
         return;
       }
@@ -165,22 +191,42 @@ module.exports = async function onInteractionCreate(interaction, commands) {
 
     // Modals
     if (interaction.isModalSubmit && interaction.isModalSubmit()) {
-      const [baseId, targetMessageId] = interaction.customId.split(':');
-      if (baseId === 'role_request_modal') {
+      const parts = interaction.customId.split(':');
+      const baseId = parts[0];
+      const version = parts[1];
+      const targetMessageId = parts[2];
+      if (baseId === 'role_request_modal' && version === 'v1') {
         await interaction.deferReply({ ephemeral: true });
-        const ingameName = interaction.fields.getTextInputValue('ingame_name');
-        const steamid64 = interaction.fields.getTextInputValue('steamid64');
-        const battalion = interaction.fields.getTextInputValue('battalion');
-        const roles = interaction.fields.getTextInputValue('roles');
+        const ingameName = (interaction.fields.getTextInputValue('ingame_name') || '').trim();
+        const steamid64 = (interaction.fields.getTextInputValue('steamid64') || '').trim();
+        const battalion = (interaction.fields.getTextInputValue('battalion') || '').trim();
+        const roles = (interaction.fields.getTextInputValue('roles') || '').trim();
+
+        // very basic validation/sanitization
+        const MAX_SHORT = 100;
+        const MAX_ROLES = 500;
+        const safe = (s, max) => s.replace(/[\n\r\t]/g, ' ').slice(0, max).trim();
+
+        const vIngameName = safe(ingameName, MAX_SHORT);
+        const vSteam = safe(steamid64, MAX_SHORT);
+        const vBattalion = safe(battalion, MAX_SHORT);
+        const vRoles = safe(roles, MAX_ROLES);
+
+        // optional: simple steamid64 pattern
+        const steamOk = /^\d{17}$/.test(vSteam);
+        if (!steamOk) {
+          await interaction.editReply({ content: 'SteamID64 must be a 17 digit number. Please try again.' });
+          return;
+        }
 
         // Determine ticket name for role requests
-        const trimmedBattalion = (battalion || 'role').trim();
+        const trimmedBattalion = (vBattalion || 'role').trim();
         const key = trimmedBattalion.toLowerCase();
         let nextNum = 1;
         try {
           nextNum = getNextTicketNumber(interaction.guild?.id || 'global', key);
         } catch (e) {
-          console.error('Failed to get next ticket number from DB:', e);
+          logger.error('Failed to get next ticket number from DB', { guildId: interaction.guild?.id }, e);
         }
         const ticketName = `${trimmedBattalion}-${nextNum}`;
 
@@ -199,10 +245,10 @@ module.exports = async function onInteractionCreate(interaction, commands) {
         const detailsEmbed = new EmbedBuilder()
           .setColor(0x2b2d31)
           .addFields(
-            { name: '**In-Game Name**', value: ingameName || 'N/A', inline: false },
-            { name: '**SteamID64**', value: steamid64 || 'N/A', inline: false },
-            { name: '**Battalion/Spec**', value: battalion || 'N/A', inline: false },
-            { name: '**Requested Roles**', value: roles || 'N/A', inline: false },
+            { name: '**In-Game Name**', value: vIngameName || 'N/A', inline: false },
+            { name: '**SteamID64**', value: vSteam || 'N/A', inline: false },
+            { name: '**Battalion/Spec**', value: trimmedBattalion || 'N/A', inline: false },
+            { name: '**Requested Roles**', value: vRoles || 'N/A', inline: false },
           );
 
         if (targetMessageId) {
@@ -239,7 +285,7 @@ module.exports = async function onInteractionCreate(interaction, commands) {
       }
     }
   } catch (err) {
-    console.error('Interaction error:', err);
+    logger.error('Interaction error', { userId: interaction.user?.id, guildId: interaction.guild?.id, context: 'interactionCreate' }, err);
     if (interaction.deferred || interaction.replied) {
       await interaction.followUp({ content: 'An error occurred while processing your request.', ephemeral: true }).catch(() => {});
     } else {

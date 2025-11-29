@@ -8,7 +8,7 @@ function buildSupportPanel() {
 
   const row = new ActionRowBuilder().addComponents(
     new ButtonBuilder()
-      .setCustomId('ticket_open_support')
+      .setCustomId('ticket:open:support:v1')
       .setLabel('Open Support Ticket')
       .setEmoji('🎫')
       .setStyle(ButtonStyle.Primary)
