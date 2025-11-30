@@ -210,9 +210,23 @@ module.exports = async function onInteractionCreate(interaction, commands) {
       }
 
       if (customId === 'ticket:role:edit:v1') {
-        const modal = buildRoleRequestModal();
-        // encode the message id so we can update this message on submit
+        const embeds = interaction.message.embeds;
+        const details = embeds[1]; // second embed contains the form fields
+
+        // Extract previous values safely
+        const defaults = {
+          ingame_name: details?.fields?.find(f => f.name === MODAL_LABELS.ingame_name)?.value || '',
+          steamid64:   details?.fields?.find(f => f.name === MODAL_LABELS.steamid64)?.value || '',
+          battalion:   details?.fields?.find(f => f.name === MODAL_LABELS.battalion)?.value || '',
+          roles:       details?.fields?.find(f => f.name === MODAL_LABELS.roles)?.value || '',
+        };
+
+        // Build modal with pre-filled values
+        const modal = buildRoleRequestModal(defaults);
+
+        // encode the message id so we can update this exact message on submit
         try { modal.setCustomId(`role_request_modal:v1:${interaction.message.id}`); } catch {}
+
         await interaction.showModal(modal);
         return;
       }
@@ -280,7 +294,6 @@ module.exports = async function onInteractionCreate(interaction, commands) {
             else embedsPayload.push(headerEmbed);
             embedsPayload.push(detailsEmbed);
             await target.edit({ embeds: embedsPayload, components: target.components });
-            await interaction.editReply({ content: 'Updated your role request.' });
           } else {
             await channel.send({ embeds: [headerEmbed, detailsEmbed] });
             await interaction.editReply({ content: 'Original message not found. Posted an update in this ticket.' });

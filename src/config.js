@@ -137,7 +137,7 @@ module.exports = {
   // Supports placeholders: {user}, {ticketName}, {ticketType}, {ticketChannel}
   ticketCreationNotificationEmbed: {
     title: 'Ticket Created',
-    description: '{user} has created a new {ticketType} ticket.',
+    description: '{user} has created a ticket.',
     embedColor: '#08aad1',
     fields: [
       { name: 'Ticket', value: '#{ticketNumber}', inline: true },
@@ -148,7 +148,7 @@ module.exports = {
   // Supports placeholders: {user}, {ticketName}, {ticketType}, {closedBy}
   ticketClosureNotificationEmbed: {
     title: 'Ticket Closed',
-    description: '{closedBy} has closed a {ticketType} ticket.',
+    description: '{closedBy} has closed a ticket.',
     embedColor: '#067894',
     fields: [
       { name: 'Ticket', value: '#{ticketNumber}', inline: true },
