@@ -14,7 +14,6 @@ async function closeTicket(interaction, channel, config) {
   try {
     // Determine ticket type from channel name (more robust detection)
     const ticketName = channel.name || '';
-    let ticketType = 'support'; // default
 
     // Patterns for role tickets
     const rolePatterns = [
@@ -28,8 +27,6 @@ async function closeTicket(interaction, channel, config) {
       ticketType = 'role';
     }
 
-    // Log detection for debugging
-    logger.info('Detected ticket type', { ticketName, ticketType });
 
     // -------------------------------
     // 🔎 FIND ORIGINAL TICKET USER

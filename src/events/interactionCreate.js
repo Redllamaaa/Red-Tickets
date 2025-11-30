@@ -179,7 +179,6 @@ module.exports = async function onInteractionCreate(interaction, commands) {
         await sendTicketCreationNotification({
           user: ticketUser,
           channel: location,
-          ticketType,
           client: interaction.client,
           config,
         }).catch(err => logger.warn('Failed to send ticket creation notification', err));
@@ -314,7 +313,6 @@ module.exports = async function onInteractionCreate(interaction, commands) {
           await sendTicketCreationNotification({
             user: ticketUser,
             channel: location,
-            ticketType,
             client: interaction.client,
             config,
           }).catch(err => logger.warn('Failed to send ticket creation notification', err));

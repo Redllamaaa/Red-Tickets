@@ -134,7 +134,7 @@ module.exports = {
   ticketNotificationChannelId: '1444374349036523581',
 
   // Embed sent to the notification channel when a ticket is created
-  // Supports placeholders: {user}, {ticketName}, {ticketType}, {ticketChannel}
+  // Supports placeholders: {user}, {ticketName}, {ticketChannel}
   ticketCreationNotificationEmbed: {
     title: 'Ticket Created',
     description: '{user} has created a ticket.',
@@ -145,7 +145,7 @@ module.exports = {
   },
 
   // Embed sent to the notification channel when a ticket is closed
-  // Supports placeholders: {user}, {ticketName}, {ticketType}, {closedBy}
+  // Supports placeholders: {user}, {ticketName}, {closedBy}
   ticketClosureNotificationEmbed: {
     title: 'Ticket Closed',
     description: '{closedBy} has closed a ticket.',
