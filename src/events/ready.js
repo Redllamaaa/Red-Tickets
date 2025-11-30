@@ -6,15 +6,6 @@ const logger = require('../utils/logger');
 module.exports = async function onclientReady(client, token, commands) {
   logger.info(`Logged in as ${client.user.tag}`, { userId: client.user.id });
 
-  try {
-    client.user.setPresence({
-      activities: [{ name: 'tickets', type: ActivityType.Listening }],
-      status: 'online',
-    });
-  } catch (err) {
-    logger.warn('Failed to set presence', { context: 'clientReady' });
-  }
-
   // Register slash commands
   try {
     const rest = new REST({ version: '10' }).setToken(token);
