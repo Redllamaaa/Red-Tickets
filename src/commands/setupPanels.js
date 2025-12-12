@@ -1,6 +1,7 @@
 const { PermissionFlagsBits, ChannelType } = require('discord.js');
 const { buildSupportPanel } = require('../panels/supportPanel');
 const { buildRoleRequestPanel } = require('../panels/roleRequestPanel');
+const { getGuildConfig } = require('../utils/guildConfig');
 
 module.exports = {
   data: {
@@ -33,6 +34,7 @@ module.exports = {
   async execute(interaction) {
     const target = interaction.options.getChannel('channel');
     const which = interaction.options.getString('type');
+    const config = getGuildConfig(interaction.guild.id);
 
     if (!target || target.type !== ChannelType.GuildText) {
       await interaction.reply({ content: 'Please choose a text channel.', ephemeral: true });
@@ -41,10 +43,10 @@ module.exports = {
 
     const toSend = [];
     if (which === 'support' || which === 'both') {
-      toSend.push(buildSupportPanel());
+      toSend.push(buildSupportPanel(config));
     }
     if (which === 'roles' || which === 'both') {
-      toSend.push(buildRoleRequestPanel());
+      toSend.push(buildRoleRequestPanel(config));
     }
 
     for (const payload of toSend) {

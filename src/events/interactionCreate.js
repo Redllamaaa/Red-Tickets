@@ -1,12 +1,10 @@
 const { ChannelType, PermissionFlagsBits, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, MessageFlags } = require('discord.js');
-const config = require('../config');
+const { getGuildConfig } = require('../utils/guildConfig');
 const { buildRoleRequestModal } = require('../utils/roleRequestModal');
 const { getNextTicketNumber } = require('../utils/db');
 const { closeTicket } = require('../utils/ticketClosure');
 const { sendTicketCreationNotification } = require('../utils/ticketNotifications');
 const logger = require('../utils/logger');
-
-const { supportRoleId, ticketCategoryId, roleRequestEmbed, supportTicketEmbed, MODAL_LABELS, deletionEmbed, deletionDelaySeconds, supportInitialMessage, roleRequestInitialMessage, supportTicketCategoryId, roleTicketCategoryId, ticketClosureDmEmbed } = config;
 
 // simple in-memory cooldown to prevent spam
 const cooldowns = new Map(); // key: `${userId}:${action}` -> timestamp ms
@@ -21,10 +19,10 @@ function checkCooldown(userId, action) {
   return true;
 }
 
-async function createTicketThread({ interaction, type, title, initialMessage, overrideName }) {
+async function createTicketThread({ interaction, type, title, initialMessage, overrideName, config }) {
   try {
     // choose category per ticket type, fall back to legacy ticketCategoryId
-    const categoryId = (type === 'role' ? (roleTicketCategoryId || ticketCategoryId) : (supportTicketCategoryId || ticketCategoryId));
+    const categoryId = (type === 'role' ? (config.roleTicketCategoryId || config.ticketCategoryId) : (config.supportTicketCategoryId || config.ticketCategoryId));
     if (!categoryId) {
       const which = type === 'role' ? 'roleTicketCategoryId' : 'supportTicketCategoryId';
       await interaction.editReply({ content: `${which} is not defined. Please set it in src/config.js.` }).catch(() => {});
@@ -48,7 +46,7 @@ async function createTicketThread({ interaction, type, title, initialMessage, ov
       permissionOverwrites: [
         { id: guild.roles.everyone, deny: [PermissionFlagsBits.ViewChannel] },
         { id: interaction.user.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory] },
-        ...(supportRoleId ? [{ id: supportRoleId, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory] }] : []),
+        ...(config.supportRoleId ? [{ id: config.supportRoleId, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory] }] : []),
       ],
       reason: `Ticket created by ${interaction.user.tag}`,
     });
@@ -56,7 +54,7 @@ async function createTicketThread({ interaction, type, title, initialMessage, ov
     // format initial message template with placeholders
     const formatInitialMessage = (template) => {
       const userMention = interaction.user?.toString() || interaction.user?.tag || 'A user';
-      const moderatorsMention = supportRoleId ? `<@&${supportRoleId}>` : 'moderators';
+      const moderatorsMention = config.supportRoleId ? `<@&${config.supportRoleId}>` : 'moderators';
       return (template || '')
         .replace(/{user}/g, userMention)
         .replace(/{moderators}/g, moderatorsMention)
@@ -65,7 +63,7 @@ async function createTicketThread({ interaction, type, title, initialMessage, ov
 
     const processedInitial = formatInitialMessage(initialMessage || '');
     // If template produced nothing, fall back to mentioning support role and user
-    const fallback = `${supportRoleId ? `<@&${supportRoleId}>` : ''} ${interaction.user}`.trim();
+    const fallback = `${config.supportRoleId ? `<@&${config.supportRoleId}>` : ''} ${interaction.user}`.trim();
     const content = processedInitial || fallback;
 
     const actionComponents = [
@@ -87,13 +85,13 @@ async function createTicketThread({ interaction, type, title, initialMessage, ov
     const row = new ActionRowBuilder().addComponents(...actionComponents);
     const embedColor =
       type === 'role'
-        ? parseColor(roleRequestEmbed.embedColor)
-        : parseColor(supportTicketEmbed.embedColor);
+        ? parseColor(config.roleRequestEmbed.embedColor)
+        : parseColor(config.supportTicketEmbed.embedColor);
 
     // Build header embed from config (configurable per ticket type)
     const displayName = interaction.member?.displayName || interaction.user.username;
     const avatarUrl = interaction.user.displayAvatarURL?.({ size: 256 }) || interaction.user.displayAvatarURL?.();
-    const headerConfig = type === 'role' ? roleRequestEmbed : supportTicketEmbed;
+    const headerConfig = type === 'role' ? config.roleRequestEmbed : config.supportTicketEmbed;
     const headerEmbed = new EmbedBuilder()
       .setAuthor({ name: displayName, iconURL: avatarUrl })
       .setTitle(headerConfig?.title || title)
@@ -122,11 +120,11 @@ function parseColor(val) {
 }
 
 // Build the deletion embed from config, replacing placeholders
-function buildDeletionEmbed(userDisplay, delaySeconds) {
-  const descTemplate = (deletionEmbed && deletionEmbed.description);
+function buildDeletionEmbed(userDisplay, delaySeconds, config) {
+  const descTemplate = (config.deletionEmbed && config.deletionEmbed.description);
   const desc = descTemplate.replace('{user}', userDisplay).replace('{delay}', String(delaySeconds));
-  const color = deletionEmbed ? parseColor(deletionEmbed.embedColor) : undefined;
-  const e = new EmbedBuilder().setTitle(deletionEmbed?.title).setDescription(desc);
+  const color = config.deletionEmbed ? parseColor(config.deletionEmbed.embedColor) : undefined;
+  const e = new EmbedBuilder().setTitle(config.deletionEmbed?.title).setDescription(desc);
   if (color !== undefined) e.setColor(color);
   return e;
 }
@@ -135,6 +133,9 @@ module.exports = async function onInteractionCreate(interaction, commands) {
   try {
     // Ensure we only operate in guild contexts
     if (!interaction.inGuild || !interaction.inGuild()) return;
+
+    // Get guild-specific configuration
+    const config = getGuildConfig(interaction.guild.id);
 
     // Slash commands
     if (interaction.isChatInputCommand && interaction.isChatInputCommand()) {
@@ -169,8 +170,9 @@ module.exports = async function onInteractionCreate(interaction, commands) {
           interaction,
           type: 'support',
           title: 'Support Ticket',
-          initialMessage: supportInitialMessage,
+          initialMessage: config.supportInitialMessage,
           overrideName: ticketName,
+          config,
         });
         if (!result) return; // Exit if config error
         const { location, ticketType, ticketUser } = result;
@@ -179,6 +181,7 @@ module.exports = async function onInteractionCreate(interaction, commands) {
         await sendTicketCreationNotification({
           user: ticketUser,
           channel: location,
+          ticketType,
           client: interaction.client,
           config,
         }).catch(err => logger.warn('Failed to send ticket creation notification', err));
@@ -214,10 +217,10 @@ module.exports = async function onInteractionCreate(interaction, commands) {
 
         // Extract previous values safely
         const defaults = {
-          ingame_name: details?.fields?.find(f => f.name === MODAL_LABELS.ingame_name)?.value || '',
-          steamid64:   details?.fields?.find(f => f.name === MODAL_LABELS.steamid64)?.value || '',
-          battalion:   details?.fields?.find(f => f.name === MODAL_LABELS.battalion)?.value || '',
-          roles:       details?.fields?.find(f => f.name === MODAL_LABELS.roles)?.value || '',
+          ingame_name: details?.fields?.find(f => f.name === config.MODAL_LABELS.ingame_name)?.value || '',
+          steamid64:   details?.fields?.find(f => f.name === config.MODAL_LABELS.steamid64)?.value || '',
+          battalion:   details?.fields?.find(f => f.name === config.MODAL_LABELS.battalion)?.value || '',
+          roles:       details?.fields?.find(f => f.name === config.MODAL_LABELS.roles)?.value || '',
         };
 
         // Build modal with pre-filled values
@@ -270,16 +273,16 @@ module.exports = async function onInteractionCreate(interaction, commands) {
 
         const headerEmbed = new EmbedBuilder()
           .setAuthor({ name: displayName, iconURL: avatarUrl })
-          .setColor(parseColor(roleRequestEmbed.embedColor))
-          .setDescription(roleRequestEmbed.openDescription)
+          .setColor(parseColor(config.roleRequestEmbed.embedColor))
+          .setDescription(config.roleRequestEmbed.openDescription)
 
         const detailsEmbed = new EmbedBuilder()
-          .setColor(parseColor(roleRequestEmbed.embedColor))
+          .setColor(parseColor(config.roleRequestEmbed.embedColor))
           .addFields(
-            { name: MODAL_LABELS.ingame_name, value: ingameName || 'N/A', inline: false },
-            { name: MODAL_LABELS.steamid64, value: steamid64 || 'N/A', inline: false },
-            { name: MODAL_LABELS.battalion, value: battalion || 'N/A', inline: false },
-            { name: MODAL_LABELS.roles, value: roles || 'N/A', inline: false },
+            { name: config.MODAL_LABELS.ingame_name, value: ingameName || 'N/A', inline: false },
+            { name: config.MODAL_LABELS.steamid64, value: steamid64 || 'N/A', inline: false },
+            { name: config.MODAL_LABELS.battalion, value: battalion || 'N/A', inline: false },
+            { name: config.MODAL_LABELS.roles, value: roles || 'N/A', inline: false },
           );
 
         if (targetMessageId) {
@@ -303,8 +306,9 @@ module.exports = async function onInteractionCreate(interaction, commands) {
             interaction,
             type: 'role',
             title: 'Role Request Ticket',
-            initialMessage: roleRequestInitialMessage,
+            initialMessage: config.roleRequestInitialMessage,
             overrideName: ticketName,
+            config,
           });
           if (!result) return; // Exit if config error
           const { location, message, ticketType, ticketUser } = result;
@@ -313,6 +317,7 @@ module.exports = async function onInteractionCreate(interaction, commands) {
           await sendTicketCreationNotification({
             user: ticketUser,
             channel: location,
+            ticketType,
             client: interaction.client,
             config,
           }).catch(err => logger.warn('Failed to send ticket creation notification', err));

@@ -1,14 +1,13 @@
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
-const { supportTicketEmbed, panelImageUrl } = require('../config');
 
-function buildSupportPanel() {
+function buildSupportPanel(config) {
   const embed = new EmbedBuilder()
-    .setTitle(supportTicketEmbed.title)
-    .setDescription(supportTicketEmbed.panelDescription)
-    .setColor(supportTicketEmbed.embedColor);
+    .setTitle(config.supportTicketEmbed.title)
+    .setDescription(config.supportTicketEmbed.panelDescription)
+    .setColor(config.supportTicketEmbed.embedColor);
 
-    if (panelImageUrl) {
-    embed.setThumbnail(panelImageUrl);
+    if (config.panelImageUrl) {
+    embed.setThumbnail(config.panelImageUrl);
   }
 
   const row = new ActionRowBuilder().addComponents(

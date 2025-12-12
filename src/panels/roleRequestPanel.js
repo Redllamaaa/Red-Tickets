@@ -1,15 +1,14 @@
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
-const { roleRequestEmbed, panelImageUrl } = require('../config');
 
-function buildRoleRequestPanel() {
+function buildRoleRequestPanel(config) {
   const embed = new EmbedBuilder()
-    .setTitle(roleRequestEmbed.title)
-    .setDescription(roleRequestEmbed.panelDescription)
-    .setColor(roleRequestEmbed.embedColor);
+    .setTitle(config.roleRequestEmbed.title)
+    .setDescription(config.roleRequestEmbed.panelDescription)
+    .setColor(config.roleRequestEmbed.embedColor);
     
 
-  if (panelImageUrl) {
-    embed.setThumbnail(panelImageUrl);
+  if (config.panelImageUrl) {
+    embed.setThumbnail(config.panelImageUrl);
   }
 
   const row = new ActionRowBuilder().addComponents(
