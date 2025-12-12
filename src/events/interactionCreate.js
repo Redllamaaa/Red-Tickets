@@ -1,5 +1,5 @@
 const { ChannelType, PermissionFlagsBits, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, MessageFlags } = require('discord.js');
-const { getGuildConfig } = require('../utils/guildConfig');
+const { getGuildConfig, updateGuildConfig } = require('../utils/guildConfig');
 const { buildRoleRequestModal } = require('../utils/roleRequestModal');
 const { getNextTicketNumber } = require('../utils/db');
 const { closeTicket } = require('../utils/ticketClosure');
@@ -240,8 +240,51 @@ module.exports = async function onInteractionCreate(interaction, commands) {
       const baseId = parts[0];
       const version = parts[1];
       const targetMessageId = parts[2];
+      
+      // Handle config modal submissions
+      if (baseId === 'config' && parts[1] === 'set') {
+        const setting = parts.slice(2).join(':'); // Rejoin in case the setting has colons
+        const description = interaction.fields.getTextInputValue('description');
+        
+        const [parent, child] = setting.split('.');
+        const config = getGuildConfig(interaction.guild.id);
+        const updates = {
+          [parent]: {
+            ...config[parent],
+            [child]: description
+          }
+        };
+        
+        updateGuildConfig(interaction.guild.id, updates);
+        
+        const panelName = setting.startsWith('supportTicketEmbed') ? 'Support Panel' : 'Role Request Panel';
+        await interaction.reply({
+          content: `✅ **${panelName} - Description** has been updated!`,
+          flags: MessageFlags.Ephemeral
+        });
+        return;
+      }
+      
       if (baseId === 'role_request_modal' && version === 'v1') {
-        await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+        // Check if interaction is still valid before attempting to defer
+        if (interaction.replied || interaction.deferred) {
+          logger.warn('Attempted to handle already-responded modal interaction', { userId: interaction.user?.id });
+          return;
+        }
+        
+        // Defer reply immediately to prevent interaction timeout
+        try {
+          await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+        } catch (err) {
+          logger.error('Failed to defer modal submit interaction', { 
+            userId: interaction.user?.id,
+            replied: interaction.replied,
+            deferred: interaction.deferred,
+            error: err.message 
+          });
+          return; // Can't proceed if we can't acknowledge the interaction
+        }
+        
         const ingameName = interaction.fields.getTextInputValue('ingame_name') || '';
         const steamid64 = interaction.fields.getTextInputValue('steamid64') || '';
         const battalion = interaction.fields.getTextInputValue('battalion') || '';
@@ -296,6 +339,7 @@ module.exports = async function onInteractionCreate(interaction, commands) {
             else embedsPayload.push(headerEmbed);
             embedsPayload.push(detailsEmbed);
             await target.edit({ embeds: embedsPayload, components: target.components });
+            await interaction.editReply({ content: '✅ Role request updated successfully!' });
           } else {
             await channel.send({ embeds: [headerEmbed, detailsEmbed] });
             await interaction.editReply({ content: 'Original message not found. Posted an update in this ticket.' });
