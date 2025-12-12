@@ -1,6 +1,6 @@
 const { EmbedBuilder, MessageFlags } = require('discord.js');
 const logger = require('./logger');
-const { sendTicketClosureNotification } = require('./ticketNotifications');
+const { sendTicketClosureLogging } = require('./ticketLoggings');
 
 function parseColor(val) {
   if (typeof val === 'string') {
@@ -54,16 +54,16 @@ async function closeTicket(interaction, channel, config) {
     }
 
     // -------------------------------
-    // 📢 SEND CLOSURE NOTIFICATION
+    // 📢 SEND CLOSURE Logging
     // -------------------------------
-    await sendTicketClosureNotification({
+    await sendTicketClosureLogging({
       user: ticketUser,
       ticketName,
       ticketType,
       closedBy: interaction.user,
       guild: interaction.guild,
       config,
-    }).catch(err => logger.warn('Failed to send ticket closure notification', err));
+    }).catch(err => logger.warn('Failed to send ticket closure Logging', err));
 
     // -------------------------------
     // ✉️ SEND DM TO USER

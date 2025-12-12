@@ -7,7 +7,7 @@ const DEFAULT_CONFIG = {
   ticketCategoryId: null,
   supportTicketCategoryId: null,
   roleTicketCategoryId: null,
-  ticketNotificationChannelId: null,
+  loggingChannelId: null,
   
   roleRequestEmbed: {
     title: 'Role Request Ticket',
@@ -54,7 +54,7 @@ const DEFAULT_CONFIG = {
     ],
   },
   
-  ticketCreationNotificationEmbed: {
+  ticketCreationLoggingEmbed: {
     title: 'Ticket Created',
     description: '{user} has created a ticket.',
     embedColor: '#08aad1',
@@ -63,7 +63,7 @@ const DEFAULT_CONFIG = {
     ],
   },
   
-  ticketClosureNotificationEmbed: {
+  ticketClosureLoggingEmbed: {
     title: 'Ticket Closed',
     description: '{closedBy} has closed a ticket.',
     embedColor: '#067894',

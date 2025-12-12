@@ -25,7 +25,7 @@ module.exports = {
               { name: 'Support Role', value: 'supportRoleId' },
               { name: 'Support Ticket Category', value: 'supportTicketCategoryId' },
               { name: 'Role Request Category', value: 'roleTicketCategoryId' },
-              { name: 'Notification Channel', value: 'ticketNotificationChannelId' },
+              { name: 'Logging Channel', value: 'loggingChannelId' },
               { name: 'Panel Image URL', value: 'panelImageUrl' },
             ],
           },
@@ -74,8 +74,8 @@ module.exports = {
             inline: true 
           },
           { 
-            name: 'Notification Channel', 
-            value: config.ticketNotificationChannelId ? `<#${config.ticketNotificationChannelId}>` : '❌ Not set',
+            name: 'Logging Channel', 
+            value: config.loggingChannelId ? `<#${config.loggingChannelId}>` : '❌ Not set',
             inline: true 
           },
           { 
@@ -126,7 +126,7 @@ module.exports = {
         supportRoleId: 'Support Role',
         supportTicketCategoryId: 'Support Ticket Category',
         roleTicketCategoryId: 'Role Request Category',
-        ticketNotificationChannelId: 'Notification Channel',
+        loggingChannelId: 'Logging Channel',
         panelImageUrl: 'Panel Image URL',
       };
       

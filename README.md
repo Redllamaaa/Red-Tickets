@@ -11,10 +11,10 @@ A feature-rich Discord bot for managing support tickets and role requests across
 - **Per-Server Configuration** - Each server can customize:
   - Support role
   - Ticket categories
-  - Notification channels
+  - Logging channels
   - Embed colors and messages
   - Panel images
-- **Ticket Notifications** - Get notified in a dedicated channel when tickets are created/closed
+- **Ticket Loggings** - Get notified in a dedicated channel when tickets are created/closed
 - **User DMs** - Automatically DM users when their tickets are closed
 - **Database Storage** - SQLite database for persistent ticket numbering and server configs
 - **Cooldown Protection** - Prevents ticket spam
@@ -61,14 +61,14 @@ When you invite the bot to a server for the first time:
 1. **Create Required Channels**
    - A category for support tickets
    - A category for role request tickets
-   - A channel for ticket notifications
+   - A channel for ticket Loggings
 
 2. **Configure the Bot**
    ```
    /config set setting:Support Role value:@YourSupportRole
    /config set setting:Support Ticket Category value:#support-category
    /config set setting:Role Request Category value:#roles-category
-   /config set setting:Notification Channel value:#ticket-logs
+   /config set setting:Logging Channel value:#ticket-logs
    ```
 
 3. **Deploy Ticket Panels**
@@ -103,7 +103,7 @@ Each server starts with sensible defaults. You can customize:
 
 - Embed titles, descriptions, and colors
 - Initial messages in tickets
-- Notification format
+- Logging format
 - Panel image
 - Modal field labels
 
@@ -185,7 +185,7 @@ discordbot/
 │   │   ├── logger.js      # Logging utility
 │   │   ├── roleRequestModal.js
 │   │   ├── ticketClosure.js
-│   │   └── ticketNotifications.js
+│   │   └── ticketLoggings.js
 │   ├── config.js          # Legacy config (now unused)
 │   └── index.js           # Bot entry point
 ├── data/                  # Database files

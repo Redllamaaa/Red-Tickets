@@ -16,34 +16,34 @@ function extractTicketNumberFromName(name) {
 }
 
 /**
- * Sends a ticket creation notification to the configured notification channel
- * @param {Object} options - Options for the notification
+ * Sends a ticket creation Logging to the configured Logging channel
+ * @param {Object} options - Options for the Logging
  * @param {import('discord.js').User} options.user - The user who created the ticket
  * @param {import('discord.js').TextChannel} options.channel - The ticket channel
  * @param {string} options.ticketType - The type of ticket ('support' or 'role')
  * @param {import('discord.js').Client} options.client - Discord client
  * @param {Object} options.config - Bot configuration
  */
-async function sendTicketCreationNotification({ user, channel, ticketType, client, config }) {
+async function sendTicketCreationLogging({ user, channel, ticketType, client, config }) {
   try {
-    if (!config.ticketNotificationChannelId) {
-      return; // Notifications disabled
+    if (!config.loggingChannelId) {
+      return; // Loggings disabled
     }
 
     const guild = channel.guild;
-    const notificationChannel =
-      guild.channels.cache.get(config.ticketNotificationChannelId) ||
-      await guild.channels.fetch(config.ticketNotificationChannelId).catch(() => null);
+    const LoggingChannel =
+      guild.channels.cache.get(config.loggingChannelId) ||
+      await guild.channels.fetch(config.loggingChannelId).catch(() => null);
 
-    if (!notificationChannel) {
-      logger.warn('Ticket notification channel not found', {
-        channelId: config.ticketNotificationChannelId,
+    if (!LoggingChannel) {
+      logger.warn('Ticket Logging channel not found', {
+        channelId: config.loggingChannelId,
         guildId: guild.id
       });
       return;
     }
 
-    const embedConfig = config.ticketCreationNotificationEmbed || {};
+    const embedConfig = config.ticketCreationLoggingEmbed || {};
     const displayName = user.displayName || user.username;
 
     // Extract ticket number from channel name
@@ -72,9 +72,9 @@ async function sendTicketCreationNotification({ user, channel, ticketType, clien
       });
     }
 
-    await notificationChannel.send({ embeds: [embed] });
+    await LoggingChannel.send({ embeds: [embed] });
   } catch (err) {
-    logger.error('Failed to send ticket creation notification', {
+    logger.error('Failed to send ticket creation Logging', {
       channelId: channel?.id,
       userId: user?.id
     }, err);
@@ -82,8 +82,8 @@ async function sendTicketCreationNotification({ user, channel, ticketType, clien
 }
 
 /**
- * Sends a ticket closure notification to the configured notification channel
- * @param {Object} options - Options for the notification
+ * Sends a ticket closure Logging to the configured Logging channel
+ * @param {Object} options - Options for the Logging
  * @param {import('discord.js').User} options.user - The user who created the ticket
  * @param {string} options.ticketName - The name of the ticket channel
  * @param {string} options.ticketType - The type of ticket ('support' or 'role')
@@ -91,25 +91,25 @@ async function sendTicketCreationNotification({ user, channel, ticketType, clien
  * @param {import('discord.js').Guild} options.guild - The guild
  * @param {Object} options.config - Bot configuration
  */
-async function sendTicketClosureNotification({ user, ticketName, ticketType, closedBy, guild, config }) {
+async function sendTicketClosureLogging({ user, ticketName, ticketType, closedBy, guild, config }) {
   try {
-    if (!config.ticketNotificationChannelId) {
-      return; // Notifications disabled
+    if (!config.loggingChannelId) {
+      return; // Loggings disabled
     }
 
-    const notificationChannel =
-      guild.channels.cache.get(config.ticketNotificationChannelId) ||
-      await guild.channels.fetch(config.ticketNotificationChannelId).catch(() => null);
+    const LoggingChannel =
+      guild.channels.cache.get(config.loggingChannelId) ||
+      await guild.channels.fetch(config.loggingChannelId).catch(() => null);
 
-    if (!notificationChannel) {
-      logger.warn('Ticket notification channel not found', {
-        channelId: config.ticketNotificationChannelId,
+    if (!LoggingChannel) {
+      logger.warn('Ticket Logging channel not found', {
+        channelId: config.loggingChannelId,
         guildId: guild.id
       });
       return;
     }
 
-    const embedConfig = config.ticketClosureNotificationEmbed || {};
+    const embedConfig = config.ticketClosureLoggingEmbed || {};
     const userDisplay = user.displayName || user.username;
 
     // Extract ticket number from ticketName
@@ -138,9 +138,9 @@ async function sendTicketClosureNotification({ user, ticketName, ticketType, clo
       });
     }
 
-    await notificationChannel.send({ embeds: [embed] });
+    await LoggingChannel.send({ embeds: [embed] });
   } catch (err) {
-    logger.error('Failed to send ticket closure notification', {
+    logger.error('Failed to send ticket closure Logging', {
       ticketName,
       userId: user?.id
     }, err);
@@ -148,6 +148,6 @@ async function sendTicketClosureNotification({ user, ticketName, ticketType, clo
 }
 
 module.exports = {
-  sendTicketCreationNotification,
-  sendTicketClosureNotification,
+  sendTicketCreationLogging,
+  sendTicketClosureLogging,
 };

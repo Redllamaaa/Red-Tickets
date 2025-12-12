@@ -3,7 +3,7 @@ const { getGuildConfig } = require('../utils/guildConfig');
 const { buildRoleRequestModal } = require('../utils/roleRequestModal');
 const { getNextTicketNumber } = require('../utils/db');
 const { closeTicket } = require('../utils/ticketClosure');
-const { sendTicketCreationNotification } = require('../utils/ticketNotifications');
+const { sendTicketCreationLogging } = require('../utils/ticketLoggings');
 const logger = require('../utils/logger');
 
 // simple in-memory cooldown to prevent spam
@@ -177,14 +177,14 @@ module.exports = async function onInteractionCreate(interaction, commands) {
         if (!result) return; // Exit if config error
         const { location, ticketType, ticketUser } = result;
         
-        // Send notification to ticket notification channel
-        await sendTicketCreationNotification({
+        // Send Logging to ticket Logging channel
+        await sendTicketCreationLogging({
           user: ticketUser,
           channel: location,
           ticketType,
           client: interaction.client,
           config,
-        }).catch(err => logger.warn('Failed to send ticket creation notification', err));
+        }).catch(err => logger.warn('Failed to send ticket creation Logging', err));
         
         await interaction.editReply({ content: `Created your support ticket: ${location}` });
         return;
@@ -313,14 +313,14 @@ module.exports = async function onInteractionCreate(interaction, commands) {
           if (!result) return; // Exit if config error
           const { location, message, ticketType, ticketUser } = result;
           
-          // Send notification to ticket notification channel
-          await sendTicketCreationNotification({
+          // Send Logging to ticket Logging channel
+          await sendTicketCreationLogging({
             user: ticketUser,
             channel: location,
             ticketType,
             client: interaction.client,
             config,
-          }).catch(err => logger.warn('Failed to send ticket creation notification', err));
+          }).catch(err => logger.warn('Failed to send ticket creation Logging', err));
           
           await message.edit({ embeds: [headerEmbed, detailsEmbed] }).catch(async () => {
             await location.send({ embeds: [headerEmbed, detailsEmbed] });
