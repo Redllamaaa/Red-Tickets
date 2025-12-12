@@ -1,4 +1,4 @@
-const { PermissionFlagsBits, ChannelType } = require('discord.js');
+const { PermissionFlagsBits, ChannelType, MessageFlags } = require('discord.js');
 const { buildSupportPanel } = require('../panels/supportPanel');
 const { buildRoleRequestPanel } = require('../panels/roleRequestPanel');
 const { getGuildConfig } = require('../utils/guildConfig');
@@ -32,12 +32,14 @@ module.exports = {
 
   // execute(interaction) will be hooked from interactionCreate later
   async execute(interaction) {
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+    
     const target = interaction.options.getChannel('channel');
     const which = interaction.options.getString('type');
     const config = getGuildConfig(interaction.guild.id);
 
     if (!target || target.type !== ChannelType.GuildText) {
-      await interaction.reply({ content: 'Please choose a text channel.', ephemeral: true });
+      await interaction.editReply({ content: 'Please choose a text channel.' });
       return;
     }
 
@@ -56,6 +58,6 @@ module.exports = {
     }
 
     const label = which === 'both' ? 'Support and Role Request' : which === 'support' ? 'Support' : 'Role Request';
-    await interaction.reply({ content: `${label} panel(s) posted in ${target}.`, ephemeral: true });
+    await interaction.editReply({ content: `${label} panel(s) posted in ${target}.` });
   },
 };

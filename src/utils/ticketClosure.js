@@ -23,6 +23,7 @@ async function closeTicket(interaction, channel, config) {
       /^role\b/i,          // role123 or role-something
     ];
 
+    let ticketType = 'support'; // Default to support ticket
     if (rolePatterns.some((rx) => rx.test(ticketName))) {
       ticketType = 'role';
     }

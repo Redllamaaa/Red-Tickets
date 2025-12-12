@@ -6,8 +6,10 @@ function buildSupportPanel(config) {
     .setDescription(config.supportTicketEmbed.panelDescription)
     .setColor(config.supportTicketEmbed.embedColor);
 
-    if (config.panelImageUrl) {
-    embed.setThumbnail(config.panelImageUrl);
+  // Use panel-specific image if set, otherwise fall back to global panelImageUrl
+  const imageUrl = config.supportTicketEmbed.imageUrl || config.panelImageUrl;
+  if (imageUrl) {
+    embed.setThumbnail(imageUrl);
   }
 
   const row = new ActionRowBuilder().addComponents(

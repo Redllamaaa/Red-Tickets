@@ -5,10 +5,11 @@ function buildRoleRequestPanel(config) {
     .setTitle(config.roleRequestEmbed.title)
     .setDescription(config.roleRequestEmbed.panelDescription)
     .setColor(config.roleRequestEmbed.embedColor);
-    
 
-  if (config.panelImageUrl) {
-    embed.setThumbnail(config.panelImageUrl);
+  // Use panel-specific image if set, otherwise fall back to global panelImageUrl
+  const imageUrl = config.roleRequestEmbed.imageUrl || config.panelImageUrl;
+  if (imageUrl) {
+    embed.setThumbnail(imageUrl);
   }
 
   const row = new ActionRowBuilder().addComponents(

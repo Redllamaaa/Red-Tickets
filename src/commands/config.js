@@ -1,4 +1,4 @@
-const { PermissionFlagsBits, EmbedBuilder } = require('discord.js');
+const { PermissionFlagsBits, EmbedBuilder, ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder, MessageFlags } = require('discord.js');
 const { getGuildConfig, updateGuildConfig, DEFAULT_CONFIG } = require('../utils/guildConfig');
 
 module.exports = {
@@ -26,14 +26,20 @@ module.exports = {
               { name: 'Support Ticket Category', value: 'supportTicketCategoryId' },
               { name: 'Role Request Category', value: 'roleTicketCategoryId' },
               { name: 'Logging Channel', value: 'loggingChannelId' },
-              { name: 'Panel Image URL', value: 'panelImageUrl' },
+              { name: 'Panel Image URL (Global)', value: 'panelImageUrl' },
+              { name: 'Support Panel - Title', value: 'supportTicketEmbed.title' },
+              { name: 'Support Panel - Description', value: 'supportTicketEmbed.panelDescription' },
+              { name: 'Support Panel - Image URL', value: 'supportTicketEmbed.imageUrl' },
+              { name: 'Role Request Panel - Title', value: 'roleRequestEmbed.title' },
+              { name: 'Role Request Panel - Description', value: 'roleRequestEmbed.panelDescription' },
+              { name: 'Role Request Panel - Image URL', value: 'roleRequestEmbed.imageUrl' },
             ],
           },
           {
             name: 'value',
             description: 'The value to set (use channel/role ID or URL)',
             type: 3, // STRING
-            required: true,
+            required: false,
           },
         ],
       },
@@ -84,47 +90,109 @@ module.exports = {
             inline: true 
           },
           { 
-            name: 'Panel Image', 
+            name: 'Panel Image (Global)', 
             value: config.panelImageUrl || '❌ Not set',
             inline: false 
+          },
+          {
+            name: '📩 Support Panel',
+            value: `**Title:** ${config.supportTicketEmbed.title}\n**Image:** ${config.supportTicketEmbed.imageUrl || 'Using global'}\n**Description:** ${config.supportTicketEmbed.panelDescription.substring(0, 100)}${config.supportTicketEmbed.panelDescription.length > 100 ? '...' : ''}`,
+            inline: false
+          },
+          {
+            name: '📝 Role Request Panel',
+            value: `**Title:** ${config.roleRequestEmbed.title}\n**Image:** ${config.roleRequestEmbed.imageUrl || 'Using global'}\n**Description:** ${config.roleRequestEmbed.panelDescription.substring(0, 100)}${config.roleRequestEmbed.panelDescription.length > 100 ? '...' : ''}`,
+            inline: false
           }
         )
         .setFooter({ text: 'Use /config set to change settings' });
 
-      await interaction.reply({ embeds: [embed], ephemeral: true });
+      await interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
       
     } else if (subcommand === 'set') {
       const setting = interaction.options.getString('setting');
-      const value = interaction.options.getString('value').trim();
+      const value = interaction.options.getString('value');
+      
+      // Determine if this is an image URL, text field, or ID field
+      const isImageUrl = setting.includes('imageUrl') || setting === 'panelImageUrl';
+      const isTextField = setting.includes('.title') || setting.includes('.panelDescription');
+      
+      // For multi-line descriptions, show a modal instead
+      if (setting.includes('.panelDescription')) {
+        const config = getGuildConfig(guildId);
+        const isSupport = setting.startsWith('supportTicketEmbed');
+        const currentValue = isSupport ? config.supportTicketEmbed.panelDescription : config.roleRequestEmbed.panelDescription;
+        
+        const modal = new ModalBuilder()
+          .setCustomId(`config:set:${setting}`)
+          .setTitle(isSupport ? 'Support Panel Description' : 'Role Request Panel Description');
+        
+        const textInput = new TextInputBuilder()
+          .setCustomId('description')
+          .setLabel('Panel Description')
+          .setStyle(TextInputStyle.Paragraph)
+          .setValue(currentValue)
+          .setRequired(true)
+          .setMaxLength(1024);
+        
+        modal.addComponents(new ActionRowBuilder().addComponents(textInput));
+        
+        await interaction.showModal(modal);
+        return;
+      }
+      
+      // For other settings, value is required
+      if (!value) {
+        await interaction.reply({
+          content: '❌ Please provide a value for this setting.',
+          flags: MessageFlags.Ephemeral
+        });
+        return;
+      }
       
       // Validate the value based on setting type
-      let processedValue = value;
+      let processedValue = value.trim();
       
-      if (setting === 'panelImageUrl') {
+      if (isImageUrl) {
         // Allow empty string to clear, or must be valid URL
         if (value && !value.match(/^https?:\/\/.+/i)) {
           await interaction.reply({ 
-            content: '❌ Panel image must be a valid HTTP/HTTPS URL, or empty to clear.', 
-            ephemeral: true 
+            content: '❌ Image URL must be a valid HTTP/HTTPS URL, or empty to clear.', 
+            flags: MessageFlags.Ephemeral 
           });
           return;
         }
         processedValue = value || null;
+      } else if (isTextField) {
+        // Text fields (titles) can be any string
+        processedValue = value;
       } else {
-        // It's an ID field - extract ID from mention or use raw value
         const idMatch = value.match(/(\d{17,19})/);
         if (!idMatch) {
           await interaction.reply({ 
             content: '❌ Invalid ID format. Please provide a valid Discord ID or mention.', 
-            ephemeral: true 
+            flags: MessageFlags.Ephemeral 
           });
           return;
         }
         processedValue = idMatch[1];
       }
       
-      // Update the config
-      const updates = { [setting]: processedValue };
+      // Handle nested properties (e.g., "supportTicketEmbed.title")
+      let updates;
+      if (setting.includes('.')) {
+        const [parent, child] = setting.split('.');
+        const config = getGuildConfig(guildId);
+        updates = {
+          [parent]: {
+            ...config[parent],
+            [child]: processedValue
+          }
+        };
+      } else {
+        updates = { [setting]: processedValue };
+      }
+      
       updateGuildConfig(guildId, updates);
       
       const settingNames = {
@@ -132,12 +200,18 @@ module.exports = {
         supportTicketCategoryId: 'Support Ticket Category',
         roleTicketCategoryId: 'Role Request Category',
         loggingChannelId: 'Logging Channel',
-        panelImageUrl: 'Panel Image URL',
+        panelImageUrl: 'Panel Image URL (Global)',
+        'supportTicketEmbed.title': 'Support Panel - Title',
+        'supportTicketEmbed.panelDescription': 'Support Panel - Description',
+        'supportTicketEmbed.imageUrl': 'Support Panel - Image URL',
+        'roleRequestEmbed.title': 'Role Request Panel - Title',
+        'roleRequestEmbed.panelDescription': 'Role Request Panel - Description',
+        'roleRequestEmbed.imageUrl': 'Role Request Panel - Image URL',
       };
       
       await interaction.reply({ 
         content: `✅ **${settingNames[setting]}** has been updated!`, 
-        ephemeral: true 
+        flags: MessageFlags.Ephemeral 
       });
       
     } else if (subcommand === 'reset') {
@@ -146,7 +220,7 @@ module.exports = {
       
       await interaction.reply({ 
         content: '✅ Configuration has been reset to defaults!', 
-        ephemeral: true 
+        flags: MessageFlags.Ephemeral 
       });
     } else if (subcommand === 'reset-embeds') {
       // Reset only the embed text/colors to defaults, preserve IDs and other settings
@@ -157,7 +231,7 @@ module.exports = {
 
       await interaction.reply({
         content: '✅ Embed texts and colors reset to defaults. IDs and channels unchanged.',
-        ephemeral: true,
+        flags: MessageFlags.Ephemeral,
       });
     }
   },

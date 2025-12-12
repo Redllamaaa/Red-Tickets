@@ -14,6 +14,7 @@ const DEFAULT_CONFIG = {
     embedColor: '#940000',
     panelDescription: 'Need a role assigned? Click below to create a role request ticket.',
     openDescription: 'Thank you for creating a Role Request. A staff member will assist you shortly.\n\nPlease note this may take up to 24 hours, so please be patient.',
+    imageUrl: null,
   },
   
   supportTicketEmbed: {
@@ -21,6 +22,7 @@ const DEFAULT_CONFIG = {
     embedColor: '#940000',
     panelDescription: 'Do you need help with Discord issues, in-game issues, or maybe you wish to appeal a warning? You are free to make a support ticket and members of the support team might be able to assist you.',
     openDescription: 'Thank you for contacting support. A member of our support team will be with you shortly.\n\nPlease describe your issue in detail so we can assist you as quickly as possible.',
+    imageUrl: null,
   },
   
   panelImageUrl: null,
