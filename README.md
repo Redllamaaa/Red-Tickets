@@ -81,11 +81,6 @@ When you invite the bot to a server for the first time:
    - Verify it creates in the correct category
    - Close it and verify you get a DM
 
-## 📖 Documentation
-
-- **[Multi-Server Setup Guide](MULTI_SERVER_SETUP.md)** - Complete setup instructions
-- **[Migration Guide](MIGRATION_GUIDE.md)** - Upgrading from single-server to multi-server
-
 ## 🎮 Commands
 
 | Command | Description | Permissions |
@@ -165,38 +160,6 @@ Replace `YOUR_CLIENT_ID` with your bot's client ID.
 ### See more logs
 Set `DEBUG=true` in your `.env` file
 
-## 🏗️ Project Structure
-
-```
-discordbot/
-├── src/
-│   ├── commands/          # Slash commands
-│   │   ├── config.js      # Configuration command
-│   │   └── setupPanels.js # Panel deployment command
-│   ├── events/            # Event handlers
-│   │   ├── ready.js       # Bot startup
-│   │   └── interactionCreate.js # Button/modal/command handling
-│   ├── panels/            # Ticket panel builders
-│   │   ├── supportPanel.js
-│   │   └── roleRequestPanel.js
-│   ├── utils/             # Utility modules
-│   │   ├── db.js          # Database connection
-│   │   ├── guildConfig.js # Per-server config management
-│   │   ├── logger.js      # Logging utility
-│   │   ├── roleRequestModal.js
-│   │   ├── ticketClosure.js
-│   │   └── ticketLoggings.js
-│   ├── config.js          # Legacy config (now unused)
-│   └── index.js           # Bot entry point
-├── data/                  # Database files
-│   └── RedTickets.db
-├── .env                   # Environment variables
-├── package.json
-├── MULTI_SERVER_SETUP.md  # Setup guide
-├── MIGRATION_GUIDE.md     # Migration instructions
-└── README.md              # This file
-```
-
 ## 🤝 Contributing
 
 Contributions are welcome! Please:
@@ -228,5 +191,3 @@ Potential future features:
 - Multi-language support
 
 ---
-
-Made with ❤️ for Discord communities
