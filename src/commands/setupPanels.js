@@ -42,10 +42,12 @@ module.exports = {
     }
 
     const toSend = [];
-    if (which === 'support' || which === 'both') {
+    if (which === 'both') {
       toSend.push(buildSupportPanel(config));
-    }
-    if (which === 'roles' || which === 'both') {
+      toSend.push(buildRoleRequestPanel(config));
+    } else if (which === 'support') {
+      toSend.push(buildSupportPanel(config));
+    } else if (which === 'roles') {
       toSend.push(buildRoleRequestPanel(config));
     }
 
