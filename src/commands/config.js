@@ -1,5 +1,5 @@
 const { PermissionFlagsBits, EmbedBuilder } = require('discord.js');
-const { getGuildConfig, updateGuildConfig } = require('../utils/guildConfig');
+const { getGuildConfig, updateGuildConfig, DEFAULT_CONFIG } = require('../utils/guildConfig');
 
 module.exports = {
   data: {
@@ -42,6 +42,11 @@ module.exports = {
         description: 'Reset configuration to defaults',
         type: 1, // SUB_COMMAND
       },
+      {
+        name: 'reset-embeds',
+        description: 'Reset panel embed text/colors to defaults (keeps IDs)',
+        type: 1, // SUB_COMMAND
+      },
     ],
     default_member_permissions: String(PermissionFlagsBits.ManageGuild),
     dm_permission: false,
@@ -65,12 +70,12 @@ module.exports = {
           },
           { 
             name: 'Support Category', 
-            value: config.supportTicketCategoryId ? `<#${config.supportTicketCategoryId}>` : '❌ Not set',
+            value: config.supportTicketCategoryId ? `\`${config.supportTicketCategoryId}\`` : '❌ Not set',
             inline: true 
           },
           { 
             name: 'Role Request Category', 
-            value: config.roleTicketCategoryId ? `<#${config.roleTicketCategoryId}>` : '❌ Not set',
+            value: config.roleTicketCategoryId ? `\`${config.roleTicketCategoryId}\`` : '❌ Not set',
             inline: true 
           },
           { 
@@ -142,6 +147,17 @@ module.exports = {
       await interaction.reply({ 
         content: '✅ Configuration has been reset to defaults!', 
         ephemeral: true 
+      });
+    } else if (subcommand === 'reset-embeds') {
+      // Reset only the embed text/colors to defaults, preserve IDs and other settings
+      updateGuildConfig(guildId, {
+        roleRequestEmbed: DEFAULT_CONFIG.roleRequestEmbed,
+        supportTicketEmbed: DEFAULT_CONFIG.supportTicketEmbed,
+      });
+
+      await interaction.reply({
+        content: '✅ Embed texts and colors reset to defaults. IDs and channels unchanged.',
+        ephemeral: true,
       });
     }
   },
