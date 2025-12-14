@@ -2,10 +2,15 @@ const { ActivityType, REST, Routes, PermissionFlagsBits } = require('discord.js'
 const logger = require('../utils/logger');
 
 // The commands will be loaded from the commands folder and passed in.
-module.exports = async function onclientReady(client, token, commands) {
+module.exports = async function onClientReady(client, token, commands) {
   logger.info(`Logged in as ${client.user.tag}`, { userId: client.user.id });
 
   // Register slash commands globally for multi-server support
+  if (commands.length === 0) {
+    logger.warn('No commands loaded, skipping command registration');
+    return;
+  }
+
   try {
     const rest = new REST({ version: '10' }).setToken(token);
     const body = commands.map((c) => ({

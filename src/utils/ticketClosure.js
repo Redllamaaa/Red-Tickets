@@ -1,14 +1,7 @@
 const { EmbedBuilder, MessageFlags } = require('discord.js');
 const logger = require('./logger');
 const { sendTicketClosureLogging } = require('./ticketLoggings');
-
-function parseColor(val) {
-  if (typeof val === 'string') {
-    if (val.startsWith('#')) return parseInt(val.slice(1), 16);
-    return parseInt(val, 16);
-  }
-  return val;
-}
+const { parseColor } = require('./logger');
 
 async function closeTicket(interaction, channel, config) {
   try {

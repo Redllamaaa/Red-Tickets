@@ -4,6 +4,15 @@ function ts() {
   return new Date().toISOString();
 }
 
+// Helper to parse color from config (supports hex string or number)
+function parseColor(val) {
+  if (typeof val === 'string') {
+    if (val.startsWith('#')) return parseInt(val.slice(1), 16);
+    return parseInt(val, 16);
+  }
+  return val;
+}
+
 function fmtMeta(meta) {
   if (!meta) return '';
   try {
@@ -46,4 +55,5 @@ module.exports = {
   warn(message, meta) { log('warn', message, meta); },
   error(message, meta, err) { log('error', message, meta, err); },
   debug(message, meta) { if (process.env.DEBUG) log('debug', message, meta); },
+  parseColor,
 };

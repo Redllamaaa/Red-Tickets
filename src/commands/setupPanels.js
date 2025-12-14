@@ -38,7 +38,7 @@ module.exports = {
     const which = interaction.options.getString('type');
     const config = getGuildConfig(interaction.guild.id);
 
-    if (!target || target.type !== ChannelType.GuildText) {
+    if (!target?.type || target.type !== ChannelType.GuildText) {
       await interaction.editReply({ content: 'Please choose a text channel.' });
       return;
     }

@@ -5,6 +5,7 @@ const { getNextTicketNumber } = require('../utils/db');
 const { closeTicket } = require('../utils/ticketClosure');
 const { sendTicketCreationLogging } = require('../utils/ticketLoggings');
 const logger = require('../utils/logger');
+const { parseColor } = require('../utils/logger');
 
 // simple in-memory cooldown to prevent spam
 const cooldowns = new Map(); // key: `${userId}:${action}` -> timestamp ms
@@ -42,41 +43,26 @@ async function createTicketThread({ interaction, type, title, initialMessage, ov
     
     // Determine which support roles to use based on ticket type
     let supportRoleOverwrites = [];
-    let deletedRoleIds = [];
+    const supportRoleIds = type === 'role' ? config.roleRequestSupportRoleIds : (config.supportRoleId ? [config.supportRoleId] : []);
     
-    if (type === 'role' && config.roleRequestSupportRoleIds && config.roleRequestSupportRoleIds.length > 0) {
-      // Use role-specific support roles for role request tickets
-      // Filter out deleted roles and collect their IDs for cleanup
+    if (supportRoleIds.length > 0) {
       const validRoleIds = [];
-      for (const roleId of config.roleRequestSupportRoleIds) {
-        const role = guild.roles.cache.get(roleId);
-        if (role) {
+      
+      for (const roleId of supportRoleIds) {
+        if (guild.roles.cache.has(roleId)) {
           validRoleIds.push(roleId);
           supportRoleOverwrites.push({
             id: roleId,
             allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory]
           });
         } else {
-          deletedRoleIds.push(roleId);
-          logger.warn('Role request support role no longer exists, removing from config', { guildId: guild.id, roleId });
+          logger.warn('Support role no longer exists, removing from config', { guildId: guild.id, roleId });
         }
       }
       
-      // Clean up deleted roles from config
-      if (deletedRoleIds.length > 0) {
+      // Clean up deleted roles from config for role request support roles
+      if (type === 'role' && validRoleIds.length !== supportRoleIds.length) {
         updateGuildConfig(guild.id, { roleRequestSupportRoleIds: validRoleIds });
-      }
-    } else if (config.supportRoleId) {
-      // Use general support role for other tickets or as fallback
-      // Verify the general support role still exists
-      const supportRole = guild.roles.cache.get(config.supportRoleId);
-      if (supportRole) {
-        supportRoleOverwrites = [{
-          id: config.supportRoleId,
-          allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory]
-        }];
-      } else {
-        logger.warn('General support role no longer exists', { guildId: guild.id, roleId: config.supportRoleId });
       }
     }
     
@@ -95,20 +81,19 @@ async function createTicketThread({ interaction, type, title, initialMessage, ov
     // format initial message template with placeholders
     const formatInitialMessage = (template) => {
       const userMention = interaction.user?.toString() || interaction.user?.tag || 'A user';
-      let moderatorsMention;
       
-      // For role request tickets, use role-specific support roles if configured
-      // Only mention roles that still exist (already validated above)
-      if (type === 'role' && config.roleRequestSupportRoleIds && config.roleRequestSupportRoleIds.length > 0) {
-        const validRoleMentions = config.roleRequestSupportRoleIds
+      // Get valid support role mentions
+      let roleMentions = '';
+      if (type === 'role' && config.roleRequestSupportRoleIds?.length > 0) {
+        roleMentions = config.roleRequestSupportRoleIds
           .filter(id => guild.roles.cache.has(id))
-          .map(id => `<@&${id}>`);
-        moderatorsMention = validRoleMentions.length > 0 ? validRoleMentions.join(' ') : 'moderators';
-      } else {
-        moderatorsMention = (config.supportRoleId && guild.roles.cache.has(config.supportRoleId)) 
-          ? `<@&${config.supportRoleId}>` 
-          : 'moderators';
+          .map(id => `<@&${id}>`)
+          .join(' ');
+      } else if (config.supportRoleId && guild.roles.cache.has(config.supportRoleId)) {
+        roleMentions = `<@&${config.supportRoleId}>`;
       }
+      
+      const moderatorsMention = roleMentions || 'moderators';
       
       return (template || '')
         .replace(/{user}/g, userMention)
@@ -117,21 +102,7 @@ async function createTicketThread({ interaction, type, title, initialMessage, ov
     };
 
     const processedInitial = formatInitialMessage(initialMessage || '');
-    // If template produced nothing, fall back to mentioning support role(s) and user
-    let fallback;
-    if (type === 'role' && config.roleRequestSupportRoleIds && config.roleRequestSupportRoleIds.length > 0) {
-      const validRoleMentions = config.roleRequestSupportRoleIds
-        .filter(id => guild.roles.cache.has(id))
-        .map(id => `<@&${id}>`);
-      const roleMentions = validRoleMentions.length > 0 ? validRoleMentions.join(' ') : '';
-      fallback = `${roleMentions} ${interaction.user}`.trim();
-    } else {
-      const supportMention = (config.supportRoleId && guild.roles.cache.has(config.supportRoleId)) 
-        ? `<@&${config.supportRoleId}>` 
-        : '';
-      fallback = `${supportMention} ${interaction.user}`.trim();
-    }
-    const content = processedInitial || fallback;
+    const content = processedInitial || `${formatInitialMessage('')} ${interaction.user}`;
 
     const actionComponents = [
       new ButtonBuilder()
@@ -177,15 +148,6 @@ async function createTicketThread({ interaction, type, title, initialMessage, ov
   }
 }
 
-// Helper to parse color from config (supports hex string or number)
-function parseColor(val) {
-  if (typeof val === 'string') {
-    if (val.startsWith('#')) return parseInt(val.slice(1), 16);
-    return parseInt(val, 16);
-  }
-  return val;
-}
-
 // Build the deletion embed from config, replacing placeholders
 function buildDeletionEmbed(userDisplay, delaySeconds, config) {
   const descTemplate = (config.deletionEmbed && config.deletionEmbed.description);
@@ -199,13 +161,13 @@ function buildDeletionEmbed(userDisplay, delaySeconds, config) {
 module.exports = async function onInteractionCreate(interaction, commands) {
   try {
     // Ensure we only operate in guild contexts
-    if (!interaction.inGuild || !interaction.inGuild()) return;
+    if (!interaction.inGuild?.()) return;
 
     // Get guild-specific configuration
     const config = getGuildConfig(interaction.guild.id);
 
     // Slash commands
-    if (interaction.isChatInputCommand && interaction.isChatInputCommand()) {
+    if (interaction.isChatInputCommand?.()) {
       const cmd = commands.get(interaction.commandName);
       if (cmd) {
         await cmd.execute(interaction);
@@ -214,7 +176,7 @@ module.exports = async function onInteractionCreate(interaction, commands) {
     }
 
     // Buttons
-    if (interaction.isButton && interaction.isButton()) {
+    if (interaction.isButton?.()) {
       const { customId } = interaction;
 
       if (customId === 'ticket:open:support:v1') {
@@ -302,7 +264,7 @@ module.exports = async function onInteractionCreate(interaction, commands) {
     }
 
     // Modals
-    if (interaction.isModalSubmit && interaction.isModalSubmit()) {
+    if (interaction.isModalSubmit?.()) {
       const parts = interaction.customId.split(':');
       const baseId = parts[0];
       const version = parts[1];

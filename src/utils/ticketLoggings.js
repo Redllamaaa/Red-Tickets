@@ -1,18 +1,28 @@
 const { EmbedBuilder } = require('discord.js');
 const logger = require('./logger');
-
-function parseColor(val) {
-  if (typeof val === 'string') {
-    if (val.startsWith('#')) return parseInt(val.slice(1), 16);
-    return parseInt(val, 16);
-  }
-  return val;
-}
+const { parseColor } = require('./logger');
 
 // Extract ticket number from names like "support-123"
 function extractTicketNumberFromName(name) {
   const match = name.match(/-(\d+)$/);
   return match ? match[1] : null;
+}
+
+// Fetch logging channel from cache or API
+async function getLoggingChannel(guild, config) {
+  if (!config.loggingChannelId) return null;
+  
+  const channel = guild.channels.cache.get(config.loggingChannelId) ||
+    await guild.channels.fetch(config.loggingChannelId).catch(() => null);
+  
+  if (!channel) {
+    logger.warn('Ticket Logging channel not found', {
+      channelId: config.loggingChannelId,
+      guildId: guild.id
+    });
+  }
+  
+  return channel;
 }
 
 /**
@@ -26,27 +36,11 @@ function extractTicketNumberFromName(name) {
  */
 async function sendTicketCreationLogging({ user, channel, ticketType, client, config }) {
   try {
-    if (!config.loggingChannelId) {
-      return; // Loggings disabled
-    }
-
-    const guild = channel.guild;
-    const LoggingChannel =
-      guild.channels.cache.get(config.loggingChannelId) ||
-      await guild.channels.fetch(config.loggingChannelId).catch(() => null);
-
-    if (!LoggingChannel) {
-      logger.warn('Ticket Logging channel not found', {
-        channelId: config.loggingChannelId,
-        guildId: guild.id
-      });
-      return;
-    }
+    const LoggingChannel = await getLoggingChannel(channel.guild, config);
+    if (!LoggingChannel) return;
 
     const embedConfig = config.ticketCreationLoggingEmbed || {};
     const displayName = user.displayName || user.username;
-
-    // Extract ticket number from channel name
     const ticketNum = extractTicketNumberFromName(channel.name);
 
     const description = (embedConfig.description || '')
@@ -62,8 +56,7 @@ async function sendTicketCreationLogging({ user, channel, ticketType, client, co
       .setColor(parseColor(embedConfig.embedColor))
       .setAuthor({ name: displayName, iconURL: user.displayAvatarURL({ size: 256 }) });
 
-    // Add fields if configured
-    if (embedConfig.fields && Array.isArray(embedConfig.fields)) {
+    if (Array.isArray(embedConfig.fields)) {
       embedConfig.fields.forEach(field => {
         const value = field.value
           .replace('{ticketType}', ticketType)
@@ -93,26 +86,11 @@ async function sendTicketCreationLogging({ user, channel, ticketType, client, co
  */
 async function sendTicketClosureLogging({ user, ticketName, ticketType, closedBy, guild, config }) {
   try {
-    if (!config.loggingChannelId) {
-      return; // Loggings disabled
-    }
-
-    const LoggingChannel =
-      guild.channels.cache.get(config.loggingChannelId) ||
-      await guild.channels.fetch(config.loggingChannelId).catch(() => null);
-
-    if (!LoggingChannel) {
-      logger.warn('Ticket Logging channel not found', {
-        channelId: config.loggingChannelId,
-        guildId: guild.id
-      });
-      return;
-    }
+    const LoggingChannel = await getLoggingChannel(guild, config);
+    if (!LoggingChannel) return;
 
     const embedConfig = config.ticketClosureLoggingEmbed || {};
     const userDisplay = user.displayName || user.username;
-
-    // Extract ticket number from ticketName
     const ticketNum = extractTicketNumberFromName(ticketName);
 
     const description = (embedConfig.description || '')
@@ -128,8 +106,7 @@ async function sendTicketClosureLogging({ user, ticketName, ticketType, closedBy
       .setColor(parseColor(embedConfig.embedColor))
       .setAuthor({ name: userDisplay, iconURL: user.displayAvatarURL({ size: 256 }) });
 
-    // Add fields if configured
-    if (embedConfig.fields && Array.isArray(embedConfig.fields)) {
+    if (Array.isArray(embedConfig.fields)) {
       embedConfig.fields.forEach(field => {
         const value = field.value
           .replace('{ticketType}', ticketType)

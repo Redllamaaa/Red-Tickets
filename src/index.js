@@ -19,16 +19,14 @@ const client = new Client({
 // Load commands
 const commands = new Map();
 const commandsDir = path.join(__dirname, 'commands');
-if (fs.existsSync(commandsDir)) {
-  for (const file of fs.readdirSync(commandsDir)) {
-    if (!file.endsWith('.js')) continue;
-    const mod = require(path.join(commandsDir, file));
-    if (!mod?.data?.name || typeof mod.execute !== 'function') {
-      console.warn(`Skipping invalid command module: ${file}`);
-      continue;
-    }
-    commands.set(mod.data.name, mod);
+for (const file of fs.readdirSync(commandsDir)) {
+  if (!file.endsWith('.js')) continue;
+  const mod = require(path.join(commandsDir, file));
+  if (!mod?.data?.name || typeof mod.execute !== 'function') {
+    console.warn(`Skipping invalid command module: ${file}`);
+    continue;
   }
+  commands.set(mod.data.name, mod);
 }
 
 // Load events
