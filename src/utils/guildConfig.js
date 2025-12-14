@@ -4,6 +4,7 @@ const logger = require('./logger');
 // Default configuration template used for all guilds
 const DEFAULT_CONFIG = {
   supportRoleId: null,
+  roleRequestSupportRoleIds: [], // Separate support team for role requests
   ticketCategoryId: null,
   supportTicketCategoryId: null,
   roleTicketCategoryId: null,

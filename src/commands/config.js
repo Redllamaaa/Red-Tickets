@@ -53,6 +53,30 @@ module.exports = {
         description: 'Reset panel embed text/colors to defaults (keeps IDs)',
         type: 1, // SUB_COMMAND
       },
+      {
+        name: 'manage-role-support',
+        description: 'Manage role request support team',
+        type: 1, // SUB_COMMAND
+        options: [
+          {
+            name: 'action',
+            description: 'Action to perform',
+            type: 3, // STRING
+            required: true,
+            choices: [
+              { name: 'Add Role', value: 'add' },
+              { name: 'Remove Role', value: 'remove' },
+              { name: 'View Roles', value: 'view' },
+            ],
+          },
+          {
+            name: 'role',
+            description: 'The role to add or remove (required for add/remove)',
+            type: 8, // ROLE
+            required: false,
+          },
+        ],
+      },
     ],
     default_member_permissions: String(PermissionFlagsBits.ManageGuild),
     dm_permission: false,
@@ -88,6 +112,13 @@ module.exports = {
             name: 'Logging Channel', 
             value: config.loggingChannelId ? `<#${config.loggingChannelId}>` : '❌ Not set',
             inline: true 
+          },
+          { 
+            name: 'Role Request Support Roles', 
+            value: config.roleRequestSupportRoleIds && config.roleRequestSupportRoleIds.length > 0 
+              ? config.roleRequestSupportRoleIds.map(id => `<@&${id}>`).join(', ')
+              : '❌ Not set (using general support role)',
+            inline: false 
           },
           { 
             name: 'Panel Image (Global)', 
@@ -233,6 +264,74 @@ module.exports = {
         content: '✅ Embed texts and colors reset to defaults. IDs and channels unchanged.',
         flags: MessageFlags.Ephemeral,
       });
+    } else if (subcommand === 'manage-role-support') {
+      const action = interaction.options.getString('action');
+      const role = interaction.options.getRole('role');
+      const config = getGuildConfig(guildId);
+      const currentRoles = config.roleRequestSupportRoleIds || [];
+
+      if (action === 'view') {
+        if (currentRoles.length === 0) {
+          await interaction.reply({
+            content: '📋 **Role Request Support Team**\n\nNo roles configured. Role requests will use the general support role.\n\n*Use `/config manage-role-support add` to add roles.*',
+            flags: MessageFlags.Ephemeral,
+          });
+        } else {
+          const roleList = currentRoles.map(id => `<@&${id}>`).join('\n');
+          await interaction.reply({
+            content: `📋 **Role Request Support Team**\n\n${roleList}\n\n*Total: ${currentRoles.length} role(s)*`,
+            flags: MessageFlags.Ephemeral,
+          });
+        }
+      } else if (action === 'add') {
+        if (!role) {
+          await interaction.reply({
+            content: '❌ Please specify a role to add.',
+            flags: MessageFlags.Ephemeral,
+          });
+          return;
+        }
+
+        if (currentRoles.includes(role.id)) {
+          await interaction.reply({
+            content: `❌ ${role} is already in the role request support team.`,
+            flags: MessageFlags.Ephemeral,
+          });
+          return;
+        }
+
+        const updatedRoles = [...currentRoles, role.id];
+        updateGuildConfig(guildId, { roleRequestSupportRoleIds: updatedRoles });
+
+        await interaction.reply({
+          content: `✅ Added ${role} to the role request support team.`,
+          flags: MessageFlags.Ephemeral,
+        });
+      } else if (action === 'remove') {
+        if (!role) {
+          await interaction.reply({
+            content: '❌ Please specify a role to remove.',
+            flags: MessageFlags.Ephemeral,
+          });
+          return;
+        }
+
+        if (!currentRoles.includes(role.id)) {
+          await interaction.reply({
+            content: `❌ ${role} is not in the role request support team.`,
+            flags: MessageFlags.Ephemeral,
+          });
+          return;
+        }
+
+        const updatedRoles = currentRoles.filter(id => id !== role.id);
+        updateGuildConfig(guildId, { roleRequestSupportRoleIds: updatedRoles });
+
+        await interaction.reply({
+          content: `✅ Removed ${role} from the role request support team.`,
+          flags: MessageFlags.Ephemeral,
+        });
+      }
     }
   },
 };

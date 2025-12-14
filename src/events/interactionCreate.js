@@ -39,6 +39,23 @@ async function createTicketThread({ interaction, type, title, initialMessage, ov
       .replace(/[^a-z0-9-]/g, '-')
       .slice(0, 90);
     const channelName = baseName;
+    
+    // Determine which support roles to use based on ticket type
+    let supportRoleOverwrites = [];
+    if (type === 'role' && config.roleRequestSupportRoleIds && config.roleRequestSupportRoleIds.length > 0) {
+      // Use role-specific support roles for role request tickets
+      supportRoleOverwrites = config.roleRequestSupportRoleIds.map(roleId => ({
+        id: roleId,
+        allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory]
+      }));
+    } else if (config.supportRoleId) {
+      // Use general support role for other tickets or as fallback
+      supportRoleOverwrites = [{
+        id: config.supportRoleId,
+        allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory]
+      }];
+    }
+    
     const channel = await guild.channels.create({
       name: channelName,
       type: ChannelType.GuildText,
@@ -46,7 +63,7 @@ async function createTicketThread({ interaction, type, title, initialMessage, ov
       permissionOverwrites: [
         { id: guild.roles.everyone, deny: [PermissionFlagsBits.ViewChannel] },
         { id: interaction.user.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory] },
-        ...(config.supportRoleId ? [{ id: config.supportRoleId, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory] }] : []),
+        ...supportRoleOverwrites,
       ],
       reason: `Ticket created by ${interaction.user.tag}`,
     });
@@ -54,7 +71,15 @@ async function createTicketThread({ interaction, type, title, initialMessage, ov
     // format initial message template with placeholders
     const formatInitialMessage = (template) => {
       const userMention = interaction.user?.toString() || interaction.user?.tag || 'A user';
-      const moderatorsMention = config.supportRoleId ? `<@&${config.supportRoleId}>` : 'moderators';
+      let moderatorsMention;
+      
+      // For role request tickets, use role-specific support roles if configured
+      if (type === 'role' && config.roleRequestSupportRoleIds && config.roleRequestSupportRoleIds.length > 0) {
+        moderatorsMention = config.roleRequestSupportRoleIds.map(id => `<@&${id}>`).join(' ');
+      } else {
+        moderatorsMention = config.supportRoleId ? `<@&${config.supportRoleId}>` : 'moderators';
+      }
+      
       return (template || '')
         .replace(/{user}/g, userMention)
         .replace(/{moderators}/g, moderatorsMention)
@@ -62,8 +87,14 @@ async function createTicketThread({ interaction, type, title, initialMessage, ov
     };
 
     const processedInitial = formatInitialMessage(initialMessage || '');
-    // If template produced nothing, fall back to mentioning support role and user
-    const fallback = `${config.supportRoleId ? `<@&${config.supportRoleId}>` : ''} ${interaction.user}`.trim();
+    // If template produced nothing, fall back to mentioning support role(s) and user
+    let fallback;
+    if (type === 'role' && config.roleRequestSupportRoleIds && config.roleRequestSupportRoleIds.length > 0) {
+      const roleMentions = config.roleRequestSupportRoleIds.map(id => `<@&${id}>`).join(' ');
+      fallback = `${roleMentions} ${interaction.user}`.trim();
+    } else {
+      fallback = `${config.supportRoleId ? `<@&${config.supportRoleId}>` : ''} ${interaction.user}`.trim();
+    }
     const content = processedInitial || fallback;
 
     const actionComponents = [
