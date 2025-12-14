@@ -20,6 +20,42 @@ function checkCooldown(userId, action) {
   return true;
 }
 
+/**
+ * Check if a user already has an open ticket of a given type
+ * @param {Guild} guild - Discord guild
+ * @param {string} userId - User ID to check
+ * @param {string} ticketType - 'support' or 'role'
+ * @returns {Promise<Channel|null>} - The existing ticket channel or null
+ */
+async function getUserOpenTicket(guild, userId, ticketType) {
+  try {
+    const channels = await guild.channels.fetch();
+    const userTickets = channels.filter(ch => {
+      // Must be a text channel
+      if (ch.type !== ChannelType.GuildText) return false;
+      
+      // Must have user permission overwrite
+      const userOverwrite = ch.permissionOverwrites.cache.get(userId);
+      if (!userOverwrite) return false;
+      
+      // Must match the ticket type pattern
+      if (ticketType === 'support') {
+        return /^support-/i.test(ch.name);
+      } else if (ticketType === 'role') {
+        // Match patterns like role-username or battalion-# or role-request-
+        return /^(role-|role(?:request)?(?:-|\b))/i.test(ch.name);
+      }
+      return false;
+    });
+
+    // Return the first (should only be one) matching ticket
+    return userTickets.first() || null;
+  } catch (err) {
+    logger.warn('Failed to check for user open tickets', { guildId: guild.id, userId }, err);
+    return null;
+  }
+}
+
 async function createTicketThread({ interaction, type, title, initialMessage, overrideName, config }) {
   try {
     // choose category per ticket type, fall back to legacy ticketCategoryId
@@ -183,6 +219,16 @@ module.exports = async function onInteractionCreate(interaction, commands) {
         if (!checkCooldown(interaction.user.id, 'open_support')) {
           return interaction.reply({ content: 'Please wait a few seconds before creating another ticket.', flags: MessageFlags.Ephemeral }).catch(() => {});
         }
+        
+        // Check if user already has an open support ticket
+        const existingTicket = await getUserOpenTicket(interaction.guild, interaction.user.id, 'support');
+        if (existingTicket) {
+          return interaction.reply({ 
+            content: `❌ You already have an open support ticket: ${existingTicket}. Please close it before creating a new one.`, 
+            flags: MessageFlags.Ephemeral 
+          }).catch(() => {});
+        }
+        
         await interaction.deferReply({ flags: MessageFlags.Ephemeral });
         
         // Generate numbered ticket name for support tickets
@@ -223,6 +269,16 @@ module.exports = async function onInteractionCreate(interaction, commands) {
         if (!checkCooldown(interaction.user.id, 'open_role')) {
           return interaction.reply({ content: 'Please wait a few seconds before creating another ticket.', flags: MessageFlags.Ephemeral }).catch(() => {});
         }
+        
+        // Check if user already has an open role request ticket
+        const existingTicket = await getUserOpenTicket(interaction.guild, interaction.user.id, 'role');
+        if (existingTicket) {
+          return interaction.reply({ 
+            content: `❌ You already have an open role request ticket: ${existingTicket}. Please close it before creating a new one.`, 
+            flags: MessageFlags.Ephemeral 
+          }).catch(() => {});
+        }
+        
         const modal = buildRoleRequestModal();
         await interaction.showModal(modal);
         return;
