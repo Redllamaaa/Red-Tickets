@@ -64,15 +64,16 @@ module.exports = {
             type: 3, // STRING
             required: true,
             choices: [
-              { name: 'Add Role', value: 'add' },
-              { name: 'Remove Role', value: 'remove' },
+              { name: 'Add Role(s)', value: 'add' },
+              { name: 'Remove Role(s)', value: 'remove' },
               { name: 'View Roles', value: 'view' },
+              { name: 'Clear All', value: 'clear' },
             ],
           },
           {
-            name: 'role',
-            description: 'The role to add or remove (required for add/remove)',
-            type: 8, // ROLE
+            name: 'roles',
+            description: 'Role mentions separated by spaces (e.g., @Role1 @Role2 @Role3)',
+            type: 3, // STRING
             required: false,
           },
         ],
@@ -266,14 +267,14 @@ module.exports = {
       });
     } else if (subcommand === 'manage-role-support') {
       const action = interaction.options.getString('action');
-      const role = interaction.options.getRole('role');
+      const rolesString = interaction.options.getString('roles');
       const config = getGuildConfig(guildId);
       const currentRoles = config.roleRequestSupportRoleIds || [];
 
       if (action === 'view') {
         if (currentRoles.length === 0) {
           await interaction.reply({
-            content: '📋 **Role Request Support Team**\n\nNo roles configured. Role requests will use the general support role.\n\n*Use `/config manage-role-support add` to add roles.*',
+            content: '📋 **Role Request Support Team**\n\nNo roles configured. Role requests will use the general support role.\n\n*Use `/config manage-role-support action:add roles:@Role1 @Role2` to add roles.*',
             flags: MessageFlags.Ephemeral,
           });
         } else {
@@ -283,54 +284,136 @@ module.exports = {
             flags: MessageFlags.Ephemeral,
           });
         }
-      } else if (action === 'add') {
-        if (!role) {
+      } else if (action === 'clear') {
+        if (currentRoles.length === 0) {
           await interaction.reply({
-            content: '❌ Please specify a role to add.',
+            content: '❌ Role request support team is already empty.',
             flags: MessageFlags.Ephemeral,
           });
           return;
         }
 
-        if (currentRoles.includes(role.id)) {
-          await interaction.reply({
-            content: `❌ ${role} is already in the role request support team.`,
-            flags: MessageFlags.Ephemeral,
-          });
-          return;
-        }
-
-        const updatedRoles = [...currentRoles, role.id];
-        updateGuildConfig(guildId, { roleRequestSupportRoleIds: updatedRoles });
+        updateGuildConfig(guildId, { roleRequestSupportRoleIds: [] });
 
         await interaction.reply({
-          content: `✅ Added ${role} to the role request support team.`,
+          content: `✅ Cleared all roles from the role request support team (${currentRoles.length} role(s) removed).`,
           flags: MessageFlags.Ephemeral,
         });
-      } else if (action === 'remove') {
-        if (!role) {
+      } else if (action === 'add' || action === 'remove') {
+        if (!rolesString) {
           await interaction.reply({
-            content: '❌ Please specify a role to remove.',
+            content: `❌ Please specify at least one role to ${action}.\n\nExample: \`/config manage-role-support action:${action} roles:@Role1 @Role2 @Role3\``,
             flags: MessageFlags.Ephemeral,
           });
           return;
         }
 
-        if (!currentRoles.includes(role.id)) {
+        // Parse role IDs from mentions (format: <@&123456789012345678>)
+        const roleIdMatches = rolesString.matchAll(/<@&(\d{17,19})>/g);
+        const roleIds = [...roleIdMatches].map(match => match[1]);
+
+        if (roleIds.length === 0) {
           await interaction.reply({
-            content: `❌ ${role} is not in the role request support team.`,
+            content: '❌ No valid role mentions found. Please mention roles using @Role format.\n\nExample: `/config manage-role-support action:add roles:@Role1 @Role2`',
             flags: MessageFlags.Ephemeral,
           });
           return;
         }
 
-        const updatedRoles = currentRoles.filter(id => id !== role.id);
-        updateGuildConfig(guildId, { roleRequestSupportRoleIds: updatedRoles });
+        // Fetch role objects to validate they exist and for display
+        const validRoles = [];
+        const invalidIds = [];
+        
+        for (const roleId of roleIds) {
+          const role = interaction.guild.roles.cache.get(roleId);
+          if (role) {
+            validRoles.push(role);
+          } else {
+            invalidIds.push(roleId);
+          }
+        }
 
-        await interaction.reply({
-          content: `✅ Removed ${role} from the role request support team.`,
-          flags: MessageFlags.Ephemeral,
-        });
+        if (validRoles.length === 0) {
+          await interaction.reply({
+            content: '❌ None of the specified roles were found in this server.',
+            flags: MessageFlags.Ephemeral,
+          });
+          return;
+        }
+
+        if (action === 'add') {
+          const alreadyAdded = [];
+          const newlyAdded = [];
+
+          validRoles.forEach(role => {
+            if (currentRoles.includes(role.id)) {
+              alreadyAdded.push(role);
+            } else {
+              newlyAdded.push(role);
+            }
+          });
+
+          if (newlyAdded.length === 0) {
+            const roleList = alreadyAdded.map(r => r.toString()).join(', ');
+            await interaction.reply({
+              content: `❌ All specified roles are already in the role request support team: ${roleList}`,
+              flags: MessageFlags.Ephemeral,
+            });
+            return;
+          }
+
+          const updatedRoles = [...currentRoles, ...newlyAdded.map(r => r.id)];
+          updateGuildConfig(guildId, { roleRequestSupportRoleIds: updatedRoles });
+
+          let message = `✅ Added ${newlyAdded.length} role(s) to the role request support team:\n${newlyAdded.map(r => r.toString()).join(', ')}`;
+          if (alreadyAdded.length > 0) {
+            message += `\n\n⚠️ Already added (skipped): ${alreadyAdded.map(r => r.toString()).join(', ')}`;
+          }
+          if (invalidIds.length > 0) {
+            message += `\n\n⚠️ Invalid role IDs (skipped): ${invalidIds.length}`;
+          }
+
+          await interaction.reply({
+            content: message,
+            flags: MessageFlags.Ephemeral,
+          });
+        } else if (action === 'remove') {
+          const notFound = [];
+          const removed = [];
+
+          validRoles.forEach(role => {
+            if (currentRoles.includes(role.id)) {
+              removed.push(role);
+            } else {
+              notFound.push(role);
+            }
+          });
+
+          if (removed.length === 0) {
+            const roleList = notFound.map(r => r.toString()).join(', ');
+            await interaction.reply({
+              content: `❌ None of the specified roles are in the role request support team: ${roleList}`,
+              flags: MessageFlags.Ephemeral,
+            });
+            return;
+          }
+
+          const updatedRoles = currentRoles.filter(id => !removed.some(r => r.id === id));
+          updateGuildConfig(guildId, { roleRequestSupportRoleIds: updatedRoles });
+
+          let message = `✅ Removed ${removed.length} role(s) from the role request support team:\n${removed.map(r => r.toString()).join(', ')}`;
+          if (notFound.length > 0) {
+            message += `\n\n⚠️ Not found (skipped): ${notFound.map(r => r.toString()).join(', ')}`;
+          }
+          if (invalidIds.length > 0) {
+            message += `\n\n⚠️ Invalid role IDs (skipped): ${invalidIds.length}`;
+          }
+
+          await interaction.reply({
+            content: message,
+            flags: MessageFlags.Ephemeral,
+          });
+        }
       }
     }
   },
