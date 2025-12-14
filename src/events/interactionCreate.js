@@ -42,18 +42,42 @@ async function createTicketThread({ interaction, type, title, initialMessage, ov
     
     // Determine which support roles to use based on ticket type
     let supportRoleOverwrites = [];
+    let deletedRoleIds = [];
+    
     if (type === 'role' && config.roleRequestSupportRoleIds && config.roleRequestSupportRoleIds.length > 0) {
       // Use role-specific support roles for role request tickets
-      supportRoleOverwrites = config.roleRequestSupportRoleIds.map(roleId => ({
-        id: roleId,
-        allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory]
-      }));
+      // Filter out deleted roles and collect their IDs for cleanup
+      const validRoleIds = [];
+      for (const roleId of config.roleRequestSupportRoleIds) {
+        const role = guild.roles.cache.get(roleId);
+        if (role) {
+          validRoleIds.push(roleId);
+          supportRoleOverwrites.push({
+            id: roleId,
+            allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory]
+          });
+        } else {
+          deletedRoleIds.push(roleId);
+          logger.warn('Role request support role no longer exists, removing from config', { guildId: guild.id, roleId });
+        }
+      }
+      
+      // Clean up deleted roles from config
+      if (deletedRoleIds.length > 0) {
+        updateGuildConfig(guild.id, { roleRequestSupportRoleIds: validRoleIds });
+      }
     } else if (config.supportRoleId) {
       // Use general support role for other tickets or as fallback
-      supportRoleOverwrites = [{
-        id: config.supportRoleId,
-        allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory]
-      }];
+      // Verify the general support role still exists
+      const supportRole = guild.roles.cache.get(config.supportRoleId);
+      if (supportRole) {
+        supportRoleOverwrites = [{
+          id: config.supportRoleId,
+          allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory]
+        }];
+      } else {
+        logger.warn('General support role no longer exists', { guildId: guild.id, roleId: config.supportRoleId });
+      }
     }
     
     const channel = await guild.channels.create({
@@ -74,10 +98,16 @@ async function createTicketThread({ interaction, type, title, initialMessage, ov
       let moderatorsMention;
       
       // For role request tickets, use role-specific support roles if configured
+      // Only mention roles that still exist (already validated above)
       if (type === 'role' && config.roleRequestSupportRoleIds && config.roleRequestSupportRoleIds.length > 0) {
-        moderatorsMention = config.roleRequestSupportRoleIds.map(id => `<@&${id}>`).join(' ');
+        const validRoleMentions = config.roleRequestSupportRoleIds
+          .filter(id => guild.roles.cache.has(id))
+          .map(id => `<@&${id}>`);
+        moderatorsMention = validRoleMentions.length > 0 ? validRoleMentions.join(' ') : 'moderators';
       } else {
-        moderatorsMention = config.supportRoleId ? `<@&${config.supportRoleId}>` : 'moderators';
+        moderatorsMention = (config.supportRoleId && guild.roles.cache.has(config.supportRoleId)) 
+          ? `<@&${config.supportRoleId}>` 
+          : 'moderators';
       }
       
       return (template || '')
@@ -90,10 +120,16 @@ async function createTicketThread({ interaction, type, title, initialMessage, ov
     // If template produced nothing, fall back to mentioning support role(s) and user
     let fallback;
     if (type === 'role' && config.roleRequestSupportRoleIds && config.roleRequestSupportRoleIds.length > 0) {
-      const roleMentions = config.roleRequestSupportRoleIds.map(id => `<@&${id}>`).join(' ');
+      const validRoleMentions = config.roleRequestSupportRoleIds
+        .filter(id => guild.roles.cache.has(id))
+        .map(id => `<@&${id}>`);
+      const roleMentions = validRoleMentions.length > 0 ? validRoleMentions.join(' ') : '';
       fallback = `${roleMentions} ${interaction.user}`.trim();
     } else {
-      fallback = `${config.supportRoleId ? `<@&${config.supportRoleId}>` : ''} ${interaction.user}`.trim();
+      const supportMention = (config.supportRoleId && guild.roles.cache.has(config.supportRoleId)) 
+        ? `<@&${config.supportRoleId}>` 
+        : '';
+      fallback = `${supportMention} ${interaction.user}`.trim();
     }
     const content = processedInitial || fallback;
 
