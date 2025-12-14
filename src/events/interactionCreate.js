@@ -244,12 +244,21 @@ module.exports = async function onInteractionCreate(interaction, commands) {
         const embeds = interaction.message.embeds;
         const details = embeds[1]; // second embed contains the form fields
 
-        // Extract previous values safely
+        if (!details?.fields) {
+          logger.warn('Could not find role request details in embed', { userId: interaction.user?.id, messageId: interaction.message.id });
+          await interaction.reply({ 
+            content: '❌ Could not load previous responses. The ticket message may be corrupted.', 
+            flags: MessageFlags.Ephemeral 
+          });
+          return;
+        }
+
+        // Extract previous values safely, treating 'N/A' as empty
         const defaults = {
-          ingame_name: details?.fields?.find(f => f.name === config.MODAL_LABELS.ingame_name)?.value || '',
-          steamid64:   details?.fields?.find(f => f.name === config.MODAL_LABELS.steamid64)?.value || '',
-          battalion:   details?.fields?.find(f => f.name === config.MODAL_LABELS.battalion)?.value || '',
-          roles:       details?.fields?.find(f => f.name === config.MODAL_LABELS.roles)?.value || '',
+          ingame_name: (details.fields.find(f => f.name === config.MODAL_LABELS.ingame_name)?.value || '')?.replace(/^N\/A$/, '') || '',
+          steamid64:   (details.fields.find(f => f.name === config.MODAL_LABELS.steamid64)?.value || '')?.replace(/^N\/A$/, '') || '',
+          battalion:   (details.fields.find(f => f.name === config.MODAL_LABELS.battalion)?.value || '')?.replace(/^N\/A$/, '') || '',
+          roles:       (details.fields.find(f => f.name === config.MODAL_LABELS.roles)?.value || '')?.replace(/^N\/A$/, '') || '',
         };
 
         // Build modal with pre-filled values
