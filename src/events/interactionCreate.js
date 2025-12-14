@@ -38,18 +38,38 @@ async function getUserOpenTicket(guild, userId, ticketType) {
       const userOverwrite = ch.permissionOverwrites.cache.get(userId);
       if (!userOverwrite) return false;
       
-      // Must match the ticket type pattern
-      if (ticketType === 'support') {
-        return /^support-/i.test(ch.name);
-      } else if (ticketType === 'role') {
-        // Match patterns like role-username or battalion-# or role-request-
-        return /^(role-|role(?:request)?(?:-|\b))/i.test(ch.name);
-      }
-      return false;
+      return true; // Preliminary filter - will check embed type below
     });
 
-    // Return the first (should only be one) matching ticket
-    return userTickets.first() || null;
+    // Check each ticket channel's embed to determine type
+    for (const channel of userTickets.values()) {
+      try {
+        const messages = await channel.messages.fetch({ limit: 10 });
+        const firstMessage = messages.last(); // Get the oldest message (first posted)
+        
+        if (firstMessage?.embeds?.length > 0) {
+          const embed = firstMessage.embeds[0];
+          const embedTitle = embed.title || '';
+          const embedDesc = embed.description || '';
+          
+          // Determine ticket type from embed
+          const isRoleRequest = /role\s?request/i.test(embedTitle) || /role\s?request/i.test(embedDesc);
+          const isSupport = /support/i.test(embedTitle) || /support/i.test(embedDesc);
+          
+          // Match the requested ticket type
+          if (ticketType === 'role' && isRoleRequest) {
+            return channel;
+          } else if (ticketType === 'support' && isSupport) {
+            return channel;
+          }
+        }
+      } catch (err) {
+        logger.debug('Failed to check channel embed', { channelId: channel.id }, err);
+        continue;
+      }
+    }
+    
+    return null;
   } catch (err) {
     logger.warn('Failed to check for user open tickets', { guildId: guild.id, userId }, err);
     return null;
